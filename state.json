@@ -1,39 +1,24 @@
 {
- "v": 2,
+ "v": 3,
  "sent": {},
  "odds": {},
  "open": {},
  "series": {
-  "3ad43395-1335-4e03-8174-c50d35aed600": "Indian Softball Cricket League 2026",
-  "91f85089-04b9-4c17-8825-f8eabf2ee8be": "Malaysia Women's T20I Tri-Series, 2026",
-  "fe4c9986-8622-4938-8f19-d5db8cbc43e2": "ACC Men's Asia Cup Rising Stars 2026",
-  "267a5b0d-370a-4955-8016-17b8790cc33f": "ICC Women's Emerging Nations Trophy, 2026"
+  "3ad43395-1335-4e03-8174-c50d35aed600": "Indian Softball Cricket League 2026"
  },
- "matches_ts": "2026-11-25T06:44:28.846479+00:00",
+ "matches_ts": "2026-11-25T06:53:30.584371+00:00",
  "matches": [
   {
-   "id": "5f3a0cb2-7221-4411-bdd8-fd5b9173399f",
-   "name": "Tbc vs Tbc, Final, ACC Mens Asia Cup Rising Stars 2026",
-   "venue": "West End Park International Cricket Stadium, Doha",
+   "id": "a1b375bd-c1c7-42ae-b10a-d67a7b727e87",
+   "name": "South Africa vs Bangladesh, 2nd Test, Bangladesh tour of South Africa, 2026",
+   "venue": "SuperSport Park, Centurion",
    "teams": [
-    "Tbc",
-    "Tbc"
+    "South Africa",
+    "Bangladesh"
    ],
-   "type": "ODI",
-   "series": "ACC Men's Asia Cup Rising Stars 2026",
-   "start": "2026-11-29T10:00:00+00:00"
-  },
-  {
-   "id": "52e54477-0f42-4b04-8ae2-63851f0b1ef1",
-   "name": "Tbc vs Tbc, 2nd Semi-Final (B1 v A2), ACC Mens Asia Cup Rising Stars 2026",
-   "venue": "West End Park International Cricket Stadium, Doha",
-   "teams": [
-    "Tbc",
-    "Tbc"
-   ],
-   "type": "ODI",
-   "series": "ACC Men's Asia Cup Rising Stars 2026",
-   "start": "2026-11-27T10:00:00+00:00"
+   "type": "",
+   "series": "",
+   "start": "2026-11-23T08:00:00+00:00"
   },
   {
    "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
@@ -44,7 +29,7 @@
     "Tbc"
    ],
    "type": "ODI",
-   "series": "ACC Men's Asia Cup Rising Stars 2026",
+   "series": "",
    "start": "2026-11-26T10:00:00+00:00"
   }
  ],
