@@ -1,0 +1,374 @@
+import os, json, re, html
+from datetime import datetime, timedelta, timezone
+import requests
+
+TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+TG_CHAT = os.environ["TELEGRAM_CHAT_ID"]
+CRIC = os.environ["CRICAPI_KEY"]
+ODDS = os.environ["ODDS_API_KEY"]
+GEM = os.environ["GEMINI_API_KEY"]
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+STATE_FILE = "state.json"
+BDT = timezone(timedelta(hours=6))
+NOW = datetime.now(timezone.utc)
+SERIES_CALLS = 0
+
+FULL = {"india", "australia", "england", "pakistan", "south africa",
+        "new zealand", "sri lanka", "bangladesh", "west indies",
+        "afghanistan", "zimbabwe", "ireland"}
+LEAGUE_RE = re.compile(
+    r"\b(ipl|indian premier league|big bash|bbl|bpl|bangladesh premier|psl|"
+    r"pakistan super league|sa20|ilt20|international league t20|cpl|"
+    r"caribbean premier|the hundred|major league cricket|mlc|icc|acc|"
+    r"asia cup|world cup|champions trophy)\b")
+BAD = ("women", "u19", "under-19", "under 19", "emerging", "development")
+
+esc = html.escape
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            s = json.load(f)
+        if s.get("v") == 2:
+            return s
+    except Exception:
+        pass
+    return {"v": 2}
+
+
+def save_state(s):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(s, f, ensure_ascii=False, indent=1)
+
+
+def tg(text, use_html=True):
+    try:
+        data = {"chat_id": TG_CHAT, "text": text[:4000]}
+        if use_html:
+            data["parse_mode"] = "HTML"
+        r = requests.post(
+            f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+            json=data, timeout=20)
+        print("telegram status:", r.status_code)
+        if not r.ok and use_html:
+            plain = re.sub(r"<[^>]+>", "", html.unescape(text))
+            return tg(plain, use_html=False)
+        return r.ok
+    except Exception as e:
+        print("telegram error:", type(e).__name__)
+        return False
+
+
+def parse(s):
+    return datetime.fromisoformat(s)
+
+
+def series_name(sid, state):
+    global SERIES_CALLS
+    cache = state.setdefault("series", {})
+    if not sid:
+        return ""
+    if sid in cache:
+        return cache[sid]
+    if SERIES_CALLS >= 20:
+        return ""
+    SERIES_CALLS += 1
+    try:
+        j = requests.get("https://api.cricapi.com/v1/series_info",
+                         params={"apikey": CRIC, "id": sid},
+                         timeout=25).json()
+        name = j["data"]["info"]["name"] if j.get("status") == "success" else ""
+    except Exception:
+        name = ""
+    if name:
+        cache[sid] = name
+    return name
+
+
+def is_major(m, series):
+    s = f"{m.get('name', '')} {series}".lower()
+    teams = [t.lower() for t in (m.get("teams") or [])]
+    if any(b in s for b in BAD):
+        return False
+    if any(t.endswith(" a") for t in teams):
+        return False
+    if LEAGUE_RE.search(s):
+        return True
+    return len(teams) == 2 and all(t in FULL for t in teams)
+
+
+def fetch_matches(state):
+    ts = state.get("matches_ts")
+    if ts and NOW - parse(ts) < timedelta(hours=6):
+        return state.get("matches", [])
+    out, seen = [], set()
+    for offset in (0, 25):
+        try:
+            j = requests.get("https://api.cricapi.com/v1/matches",
+                             params={"apikey": CRIC, "offset": offset},
+                             timeout=25).json()
+            if j.get("status") != "success":
+                print("CricAPI problem:", j.get("reason", "unknown"))
+                break
+            for m in j.get("data", []):
+                if m.get("matchEnded") or not m.get("dateTimeGMT"):
+                    continue
+                if m["id"] in seen:
+                    continue
+                series = series_name(m.get("series_id"), state)
+                if not is_major(m, series):
+                    continue
+                seen.add(m["id"])
+                start = parse(m["dateTimeGMT"]).replace(tzinfo=timezone.utc)
+                out.append({"id": m["id"], "name": m.get("name", ""),
+                            "venue": m.get("venue", ""),
+                            "teams": m.get("teams", []),
+                            "type": (m.get("matchType") or "").upper(),
+                            "series": series,
+                            "start": start.isoformat()})
+        except Exception as e:
+            print("CricAPI error:", type(e).__name__)
+            break
+    state["matches_ts"] = NOW.isoformat()
+    if out:
+        state["matches"] = out
+    return state.get("matches", [])
+
+
+def match_info(mid):
+    try:
+        j = requests.get("https://api.cricapi.com/v1/match_info",
+                         params={"apikey": CRIC, "id": mid}, timeout=25).json()
+        d = j.get("data", {})
+        if d.get("tossWinner"):
+            return (f"Toss: {d['tossWinner']} won the toss and chose to "
+                    f"{d.get('tossChoice', '?')}")
+        return "Toss: not happened yet / not in data"
+    except Exception:
+        return "Toss: data unavailable"
+
+
+def weather(venue, start):
+    try:
+        city = (venue or "").split(",")[-1].strip()
+        g = requests.get("https://geocoding-api.open-meteo.com/v1/search",
+                         params={"name": city, "count": 1}, timeout=15).json()
+        p = g["results"][0]
+        w = requests.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": p["latitude"], "longitude": p["longitude"],
+            "hourly": "precipitation_probability,relative_humidity_2m,dew_point_2m",
+            "forecast_days": 3, "timezone": "UTC"}, timeout=15).json()["hourly"]
+        i = w["time"].index(start.strftime("%Y-%m-%dT%H:00"))
+        return (f"Rain {w['precipitation_probability'][i]}%, "
+                f"Humidity {w['relative_humidity_2m'][i]}%, "
+                f"Dew point {w['dew_point_2m'][i]}C")
+    except Exception:
+        return "Weather: not available"
+
+
+def fetch_odds():
+    events = []
+    try:
+        sports = requests.get("https://api.the-odds-api.com/v4/sports/",
+                              params={"apiKey": ODDS}, timeout=20).json()
+        keys = [s["key"] for s in sports
+                if s["key"].startswith("cricket") and s.get("active")]
+        for k in keys:
+            r = requests.get(
+                f"https://api.the-odds-api.com/v4/sports/{k}/odds/",
+                params={"apiKey": ODDS, "regions": "uk", "markets": "h2h",
+                        "oddsFormat": "decimal"}, timeout=20)
+            if r.ok:
+                events += r.json()
+    except Exception as e:
+        print("Odds API error:", type(e).__name__)
+    return events
+
+
+def probs_for(match, events):
+    teams = [t.lower() for t in match["teams"]]
+    for ev in events:
+        a, b = ev["home_team"].lower(), ev["away_team"].lower()
+        if teams and all(any(t in x or x in t for x in (a, b)) for t in teams):
+            acc_p, acc_o, cnt = {}, {}, {}
+            for bm in ev.get("bookmakers", []):
+                for mk in bm.get("markets", []):
+                    if mk["key"] != "h2h":
+                        continue
+                    inv = {o["name"]: 1 / o["price"]
+                           for o in mk["outcomes"] if o.get("price")}
+                    s = sum(inv.values())
+                    if not s:
+                        continue
+                    for o in mk["outcomes"]:
+                        n = o["name"]
+                        if n in inv:
+                            acc_p[n] = acc_p.get(n, 0) + inv[n] / s
+                            acc_o[n] = acc_o.get(n, 0) + o["price"]
+                            cnt[n] = cnt.get(n, 0) + 1
+            if cnt:
+                return {n: {"o": round(acc_o[n] / cnt[n], 2),
+                            "p": round(acc_p[n] / cnt[n] * 100, 1)}
+                        for n in cnt}
+    return {}
+
+
+def gemini(m, start, stage, wx, toss, odds_txt):
+    vs = " vs ".join(m["teams"]) or m["name"]
+    prompt = f"""You are a pre-match cricket TRADING and probability analyst. Write the report for the match below.
+
+DATA (the only source of numbers you may use):
+- Match: {vs} ({m.get('type', '')}, {m.get('series', '')})
+- Venue: {m['venue']}
+- Start: {start.astimezone(BDT):%d %b %I:%M %p} BDT ({stage} minutes before start)
+- Weather: {wx}
+- {toss}
+- Odds (h2h, average of bookmakers): {odds_txt}
+
+RULES:
+- Never invent odds, player names, captains, or stats. If something is not in DATA and you are not confident, write N/A.
+- H2H, venue toss/bat-bowl % and pitch notes may come from your general knowledge only if confident; mark them (AI estimate).
+- No toss market is in DATA: say toss market not available (standard ~1.90 each).
+- Write reasons in short, simple Bengali; keep technical terms in English.
+- Plain text. Bold only with **double asterisks** for headings. Max 2800 characters total. One short line per numbered point.
+- Output EXACTLY this structure, naming both teams:
+
+━━━ 🪙 **TOSS ANALYSIS (PRE-TOSS)** ━━━
+1. **Toss Market & Odds:** ...
+2. **Toss Sentiment & Trigger:** ...
+3. **Trader & Sharp Toss Lean:** ...
+4. **Captaincy & Venue Toss Stats:** ...
+5. **Weather, Dew & Team News:** ...
+• **Punter Plus On -** [Team]
+• **Bookie Plus On -** [Team]
+• **GO WITH [BOOKIE or PUNTER]** — (reason)
+> 🎯 **AI Toss Verdict:** [predicted toss winner + bat/bowl call, or ⚠️ Skip]
+
+━━━ 📈 **MATCH ANALYSIS (PRE-MATCH)** ━━━
+1. **Match Market & Odds Shift:** both teams opening ➔ current and % shift
+2. **Graph Direction & Catalyst:** ...
+3. **Trader Movement & Sharp News:** ...
+4. **H2H & Venue Edge:** ...
+5. **Team News & Playing XI:** ...
+• **Punter Plus On -** [Team]
+• **Bookie Plus On -** [Team]
+• **GO WITH [BOOKIE or PUNTER]** — (reason)
+> 🎯 **AI Match Verdict:** [Team — clear edge, or ⚠️ NO CLEAR EDGE — SKIP]
+
+━━━ ⚡ **SESSION BIAS (PRE-MATCH)** ━━━
+• **6-Over PP:** [range] | **1st Inn Par:** [range] | **Bias:** [Over / Under / Neutral] — reason
+"""
+    try:
+        r = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
+            headers={"x-goog-api-key": GEM},
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"maxOutputTokens": 2500,
+                                       "temperature": 0.4}},
+            timeout=90)
+        if not r.ok:
+            print("Gemini error:", r.status_code, r.text[:300])
+            return None
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print("Gemini exception:", type(e).__name__)
+        return None
+
+
+def to_html(t):
+    t = esc(t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
+    return t.replace("`", "")
+
+
+def label(m):
+    t, s = m.get("type", ""), m.get("series", "")
+    return f"{t} • {s}" if s else t
+
+
+def main():
+    state = load_state()
+    for k in ("sent", "odds", "open", "series"):
+        state.setdefault(k, {})
+
+    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        tg("✅ Test: Cricket Alerts bot চালু আছে।")
+
+    matches = fetch_matches(state)
+
+    # Format A: daily digest (first run after 12:01 AM BDT)
+    today = NOW.astimezone(BDT).date().isoformat()
+    if state.get("schedule_date") != today:
+        todays = sorted(
+            [m for m in matches
+             if parse(m["start"]).astimezone(BDT).date().isoformat() == today],
+            key=lambda m: m["start"])
+        d = NOW.astimezone(BDT).strftime("%d %b %Y")
+        head = (f"📅 <b>TODAY'S MAJOR CRICKET SCHEDULE ({d})</b> | "
+                f"📊 <b>Total Major Matches:</b> <code>{len(todays)}</code>\n\n")
+        lines = []
+        for i, m in enumerate(todays, 1):
+            t = parse(m["start"]).astimezone(BDT).strftime("%I:%M %p")
+            vs = " vs ".join(m["teams"]) or m["name"]
+            lines.append(f"{i}. 🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b> | "
+                         f"⏰ <code>{t} BDT</code> | 🏟️ {esc(m['venue'])}")
+        if tg(head + ("\n".join(lines) if lines else "আজ কোনো major ম্যাচ নেই।")):
+            state["schedule_date"] = today
+
+    # Format B: pre-match reports
+    events = None
+    for m in matches:
+        start = parse(m["start"])
+        mins = (start - NOW).total_seconds() / 60
+        if -10 < mins <= 5:
+            stage = 5
+        elif 5 < mins <= 20:
+            stage = 20
+        elif 20 < mins <= 45:
+            stage = 45
+        else:
+            continue
+        sent = state["sent"].setdefault(m["id"], [])
+        if stage in sent:
+            continue
+
+        saved = state["odds"].get(m["id"], {})
+        probs = saved
+        if stage in (45, 5) or not saved:
+            if events is None:
+                events = fetch_odds()
+            probs = probs_for(m, events) or saved
+        if probs:
+            state["odds"][m["id"]] = probs
+            state["open"].setdefault(m["id"], probs)
+        opening = state["open"].get(m["id"], {})
+        odds_txt = "; ".join(
+            f"{t}: opening {opening[t]['o']} -> current {v['o']} "
+            f"(implied {opening[t]['p']}% -> {v['p']}%)"
+            for t, v in probs.items() if t in opening) or "not available"
+
+        wx = weather(m["venue"], start)
+        toss = match_info(m["id"]) if stage in (20, 5) else "Toss: not happened yet"
+        analysis = gemini(m, start, stage, wx, toss, odds_txt)
+
+        vs = " vs ".join(m["teams"]) or m["name"]
+        head = (f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
+                f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{stage}m Pre-Match</code>\n"
+                f"🕒 {start.astimezone(BDT):%d %b, %I:%M %p} BDT\n\n")
+        if analysis:
+            body = to_html(analysis[:3300])
+        else:
+            body = (f"(AI analysis এখন পাওয়া যায়নি)\n📊 {esc(odds_txt)}\n"
+                    f"🌦 {esc(wx)}\n{esc(toss)}")
+        if tg(head + body):
+            sent.append(stage)
+
+    keep = {m["id"] for m in matches}
+    for k in ("sent", "odds", "open"):
+        state[k] = {i: v for i, v in state[k].items() if i in keep}
+    save_state(state)
+
+
+main()
