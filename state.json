@@ -1,10 +1,117 @@
 {
- "v": 5,
+ "v": 6,
  "sent": {},
  "odds": {},
  "open": {},
- "series": {},
- "matches_ts": "2026-11-25T04:02:38.525111+00:00",
- "matches": [],
+ "series_ts": "2026-11-25T07:06:04.726300+00:00",
+ "series_ids": [
+  [
+   "87c62aac-bc3c-4738-ab93-19da0690488f",
+   "Indian Premier League 2026"
+  ],
+  [
+   "df59249a-2576-4995-8d14-44be98052067",
+   "Indian Premier League 2027"
+  ],
+  [
+   "c6ae878d-fcb7-4342-a7d7-a65ee3fe3de2",
+   "Big Bash League 2026-27"
+  ],
+  [
+   "9aede005-627e-47d9-8cad-088c8f5585d7",
+   "Pakistan Super League 2026"
+  ],
+  [
+   "4cbd529a-c99c-44ae-ad5c-0f893ffe9f7b",
+   "CSA Provincial One-Day Challenge Division One 2027"
+  ],
+  [
+   "3010394d-4de6-4843-8782-f41ecadf17b7",
+   "CSA T20 Challenge 2026"
+  ],
+  [
+   "d03f2842-5919-4d94-b48a-c02d8f98af49",
+   "CSA Provincial One-Day Challenge Division Two 2026-27"
+  ],
+  [
+   "4e9b136f-04eb-4f34-a30a-26f954576a12",
+   "CSA Four-Day Series Division One 2026-27"
+  ]
+ ],
+ "matches_ts": "2026-11-25T07:06:04.726300+00:00",
+ "matches": [
+  {
+   "id": "65da601f-4e46-411a-acc4-37bdf68ba6ed",
+   "name": "Boland vs Knights, 13th Match, CSA Four-Day Series Division One 2026-27",
+   "venue": "Boland Park, Paarl",
+   "teams": [
+    "Boland",
+    "Knights"
+   ],
+   "type": "TEST",
+   "series": "CSA Four-Day Series Division One 2026-27",
+   "start": "2026-11-26T08:00:00+00:00"
+  },
+  {
+   "id": "3951705c-3438-4d7f-a901-6c49951ababe",
+   "name": "Warriors vs Dolphins, 15th Match, CSA Four-Day Series Division One 2026-27",
+   "venue": "St George's Park, Gqeberha",
+   "teams": [
+    "Warriors",
+    "Dolphins"
+   ],
+   "type": "TEST",
+   "series": "CSA Four-Day Series Division One 2026-27",
+   "start": "2026-11-26T08:00:00+00:00"
+  },
+  {
+   "id": "41e79191-0939-477d-9cc6-e3b67465d62f",
+   "name": "Western Province vs Titans, 14th Match, CSA Four-Day Series Division One 2026-27",
+   "venue": "Newlands, Cape Town",
+   "teams": [
+    "Western Province",
+    "Titans"
+   ],
+   "type": "TEST",
+   "series": "CSA Four-Day Series Division One 2026-27",
+   "start": "2026-11-26T08:00:00+00:00"
+  },
+  {
+   "id": "92ac319e-0b3e-4566-b23e-e8a9b547333b",
+   "name": "Lions vs North West",
+   "venue": "The Wanderers Stadium, Johannesburg",
+   "teams": [
+    "Lions",
+    "North West - Eastvaal Renault Dragons"
+   ],
+   "type": "TEST",
+   "series": "CSA Four-Day Series Division One 2026-27",
+   "start": "2026-11-26T08:00:00+00:00"
+  },
+  {
+   "id": "e16ecbed-6301-4cd8-b968-05f2cbedb252",
+   "name": "Abu Dhabi Knight Riders vs MI Emirates, t20",
+   "venue": "",
+   "teams": [
+    "Abu Dhabi Knight Riders",
+    "MI Emirates"
+   ],
+   "type": "T20",
+   "series": "International League T20 2026",
+   "start": "2026-11-26T14:30:00+00:00"
+  },
+  {
+   "id": "a1899243-cdaf-4ad5-98db-72477456b3fb",
+   "name": "Desert Vipers vs Dubai Capitals, t20",
+   "venue": "",
+   "teams": [
+    "Desert Vipers",
+    "Dubai Capitals"
+   ],
+   "type": "T20",
+   "series": "International League T20 2026",
+   "start": "2026-11-25T14:30:00+00:00"
+  }
+ ],
  "schedule_date": "2026-11-25"
 }
