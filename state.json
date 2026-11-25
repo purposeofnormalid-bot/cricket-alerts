@@ -3,7 +3,9 @@
  "sent": {
   "e16ecbed-6301-4cd8-b968-05f2cbedb252": [],
   "8c276df2-f50f-44d0-8b8f-645b5c538456": [],
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": []
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": [],
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": [],
+  "c308d96d-b24e-4353-9afe-69972a6598ec": []
  },
  "odds": {},
  "open": {},
@@ -18,16 +20,16 @@
    "Womens Big Bash League 2026"
   ]
  ],
- "matches_ts": "2026-11-25T18:52:15.147411+00:00",
+ "matches_ts": "2026-11-25T23:15:05.060628+00:00",
  "schedule_date": "2026-11-26",
  "matches": [
   {
    "id": "e16ecbed-6301-4cd8-b968-05f2cbedb252",
-   "name": "Abu Dhabi Knight Riders vs Mi Emirates, 7th Match, International League T20 2026",
-   "venue": "Sheikh Zayed Stadium, Abu Dhabi",
+   "name": "Abu Dhabi Knight Riders vs MI Emirates, 7th Match, International League T20 2026",
+   "venue": "Zayed Cricket Stadium, Abu Dhabi",
    "teams": [
     "Abu Dhabi Knight Riders",
-    "Mi Emirates"
+    "MI Emirates"
    ],
    "type": "T20",
    "series": "International League T20 2026",
@@ -46,6 +48,18 @@
    "start": "2026-11-26T04:40:00+00:00"
   },
   {
+   "id": "115b6095-9d3b-4d4f-a006-cfa1de176353",
+   "name": "Perth Scorchers Women vs Hobart Hurricanes Women, 36th Match, Womens Big Bash League 2026",
+   "venue": "W.A.C.A. Ground, Perth",
+   "teams": [
+    "Perth Scorchers Women",
+    "Hobart Hurricanes Women"
+   ],
+   "type": "T20",
+   "series": "Womens Big Bash League 2026",
+   "start": "2026-11-27T10:10:00+00:00"
+  },
+  {
    "id": "5ac40469-f6b2-4030-802e-ec80e81c4912",
    "name": "Sydney Sixers Women vs Melbourne Stars Women, 35th Match, Womens Big Bash League 2026",
    "venue": "North Sydney Oval, Sydney",
@@ -56,6 +70,18 @@
    "type": "T20",
    "series": "Womens Big Bash League 2026",
    "start": "2026-11-26T08:10:00+00:00"
+  },
+  {
+   "id": "c308d96d-b24e-4353-9afe-69972a6598ec",
+   "name": "Australia vs England, t20",
+   "venue": "",
+   "teams": [
+    "Australia",
+    "England"
+   ],
+   "type": "T20",
+   "series": "England tour of Australia, 2026",
+   "start": "2026-11-27T08:15:00+00:00"
   }
  ]
 }
