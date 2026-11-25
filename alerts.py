@@ -9,8 +9,10 @@ ODDS = os.environ["ODDS_API_KEY"]
 GEM = os.environ["GEMINI_API_KEY"]
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
+INCLUDE_WOMEN = False   # Women's ম্যাচ চাইলে True করুন
+
 STATE_FILE = "state.json"
-STATE_VERSION = 3
+STATE_VERSION = 4
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 SERIES_CALLS = 0
@@ -19,9 +21,9 @@ FULL = {"india", "australia", "england", "pakistan", "south africa",
         "new zealand", "sri lanka", "bangladesh", "west indies",
         "afghanistan", "zimbabwe", "ireland"}
 LEAGUE_RE = re.compile(
-    r"\b(ipl|indian premier league|big bash|bbl|bpl|bangladesh premier|psl|"
-    r"pakistan super league|sa20|ilt20|international league t20|cpl|"
-    r"caribbean premier|the hundred|major league cricket|mlc|icc|acc|"
+    r"\b(ipl|indian premier league|big bash|bbl|wbbl|bpl|bangladesh premier|"
+    r"psl|pakistan super league|sa20|ilt20|international league t20|cpl|"
+    r"caribbean premier|the hundred|major league cricket|mlc|wpl|icc|acc|"
     r"asia cup|world cup|champions trophy)\b")
 FRANCHISE = [
     "super kings", "mumbai indians", "royal challengers", "knight riders",
@@ -38,8 +40,9 @@ FRANCHISE = [
     "dubai capitals", "abu dhabi knight riders",
     "paarl royals", "joburg super kings", "durban", "pretoria capitals",
     "mi cape town", "sunrisers eastern cape"]
-BAD = ("women", "u19", "under-19", "under 19", "emerging", "development",
-       "-w ", " w vs", "academy")
+BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development",
+              "academy", "softball")
+WOMEN = ("women", "-w ", " w vs", "(w)")
 
 esc = html.escape
 
@@ -82,6 +85,23 @@ def parse(s):
     return datetime.fromisoformat(s)
 
 
+def api(ep, **params):
+    try:
+        j = requests.get(f"https://api.cricapi.com/v1/{ep}",
+                         params={"apikey": CRIC, **params},
+                         timeout=25).json()
+    except Exception as e:
+        print(ep, "error:", type(e).__name__)
+        return {}
+    info = j.get("info", {})
+    print(ep, params, "->", j.get("status"), "| hits:",
+          info.get("hitsToday"), "/", info.get("hitsLimit"),
+          "| rows:", info.get("totalRows"))
+    if j.get("status") != "success":
+        print("CricAPI problem:", j.get("reason", "unknown"))
+    return j
+
+
 def series_name(sid, state):
     global SERIES_CALLS
     cache = state.setdefault("series", {})
@@ -92,35 +112,38 @@ def series_name(sid, state):
     if SERIES_CALLS >= 15:
         return ""
     SERIES_CALLS += 1
+    j = api("series_info", id=sid)
     try:
-        j = requests.get("https://api.cricapi.com/v1/series_info",
-                         params={"apikey": CRIC, "id": sid},
-                         timeout=25).json()
-        name = j["data"]["info"]["name"] if j.get("status") == "success" else ""
-        if not name:
-            print("series_info failed:", j.get("reason", "no name"))
-    except Exception as e:
-        print("series_info error:", type(e).__name__)
+        name = j["data"]["info"]["name"]
+    except Exception:
         name = ""
     if name:
         cache[sid] = name
     return name
 
 
-def is_bad(m):
-    s = (m.get("name") or "").lower() + " "
-    teams = [t.lower() for t in (m.get("teams") or [])]
-    if any(b in s for b in BAD):
+def bad_text(s):
+    s = (s or "").lower() + " "
+    if any(b in s for b in BAD_ALWAYS):
         return True
-    return any(t.endswith(" a") or t.endswith(" women") for t in teams)
+    return (not INCLUDE_WOMEN) and any(w in s for w in WOMEN)
+
+
+def is_bad(m):
+    if bad_text(m.get("name")):
+        return True
+    teams = [t.lower() for t in (m.get("teams") or [])]
+    if any(t.endswith(" a") for t in teams):
+        return True
+    if not INCLUDE_WOMEN and any(t.endswith("-w") for t in teams):
+        return True
+    return False
 
 
 def is_major(m, series):
-    if is_bad(m):
+    if is_bad(m) or (series and bad_text(series)):
         return False
     s = f"{m.get('name', '')} {series}".lower()
-    if series and any(b in series.lower() for b in BAD):
-        return False
     teams = [t.lower() for t in (m.get("teams") or [])]
     if LEAGUE_RE.search(s):
         return True
@@ -129,53 +152,66 @@ def is_major(m, series):
     return len(teams) == 2 and all(t in FULL for t in teams)
 
 
+def page_dates(tag, data):
+    ds = sorted(x.get("dateTimeGMT", "") for x in data if x.get("dateTimeGMT"))
+    if ds:
+        print(tag, "dates:", ds[0][:10], "to", ds[-1][:10])
+
+
 def fetch_matches(state):
     ts = state.get("matches_ts")
     if ts and NOW - parse(ts) < timedelta(hours=6):
         return state.get("matches", [])
-    out, seen, total, shown = [], set(), 0, 0
-    for ep, extra in (("currentMatches", {}), ("matches", {"offset": 0})):
-        try:
-            j = requests.get(f"https://api.cricapi.com/v1/{ep}",
-                             params={"apikey": CRIC, **extra},
-                             timeout=25).json()
-            info = j.get("info", {})
-            print(ep, "->", j.get("status"),
-                  "| hits:", info.get("hitsToday"), "/", info.get("hitsLimit"))
-            if j.get("status") != "success":
-                print("CricAPI problem:", j.get("reason", "unknown"))
-                continue
-            for m in j.get("data", []):
-                if m.get("matchEnded") or not m.get("dateTimeGMT"):
-                    continue
-                if m["id"] in seen or is_bad(m):
-                    continue
-                total += 1
-                start = parse(m["dateTimeGMT"]).replace(tzinfo=timezone.utc)
-                if start - NOW > timedelta(hours=36):
-                    continue
-                series = ""
-                ok = is_major(m, "")
-                if not ok:
-                    series = series_name(m.get("series_id"), state)
-                    ok = is_major(m, series)
-                if not ok:
-                    if shown < 25:
-                        print("not major:", m.get("name"), "|", series)
-                        shown += 1
-                    continue
-                seen.add(m["id"])
-                out.append({"id": m["id"], "name": m.get("name", ""),
-                            "venue": m.get("venue", ""),
-                            "teams": m.get("teams", []),
-                            "type": (m.get("matchType") or "").upper(),
-                            "series": series,
-                            "start": start.isoformat()})
-        except Exception as e:
-            print("CricAPI error:", type(e).__name__)
-    print(f"checked {total} upcoming/live, major found: {len(out)}")
-    # empty result -> retry in ~1 hour, found -> cache 6 hours
-    state["matches_ts"] = (NOW if out else NOW - timedelta(hours=5)).isoformat()
+
+    rows = []
+    cur = api("currentMatches").get("data") or []
+    page_dates("currentMatches", cur)
+    rows += cur
+    first = api("matches", offset=0)
+    d0 = first.get("data") or []
+    page_dates("matches page 0", d0)
+    rows += d0
+    try:
+        total = int(first.get("info", {}).get("totalRows") or 0)
+    except Exception:
+        total = 0
+    for off in (total - 25, total - 50):
+        if off > 0:
+            d = api("matches", offset=off).get("data") or []
+            page_dates(f"matches page {off}", d)
+            rows += d
+
+    out, seen, count, shown = [], set(), 0, 0
+    for m in rows:
+        if m.get("matchEnded") or not m.get("dateTimeGMT"):
+            continue
+        if m["id"] in seen or is_bad(m):
+            continue
+        seen.add(m["id"])
+        count += 1
+        start = parse(m["dateTimeGMT"]).replace(tzinfo=timezone.utc)
+        if start - NOW > timedelta(hours=36) or NOW - start > timedelta(hours=8):
+            continue
+        series = ""
+        ok = is_major(m, "")
+        if not ok:
+            series = series_name(m.get("series_id"), state)
+            ok = is_major(m, series)
+        if not ok:
+            if shown < 20:
+                print("not major:", m.get("name"), "|", series)
+                shown += 1
+            continue
+        print("major:", m.get("name"), "|",
+              start.astimezone(BDT).strftime("%d %b %I:%M %p"), "BDT")
+        out.append({"id": m["id"], "name": m.get("name", ""),
+                    "venue": m.get("venue", ""),
+                    "teams": m.get("teams", []),
+                    "type": (m.get("matchType") or "").upper(),
+                    "series": series, "start": start.isoformat()})
+    print(f"rows: {len(rows)}, upcoming/live: {count}, major found: {len(out)}")
+    # পাওয়া গেলে ৬ ঘণ্টা cache; না পেলে ৩ ঘণ্টা পর আবার চেষ্টা
+    state["matches_ts"] = (NOW if out else NOW - timedelta(hours=3)).isoformat()
     if out:
         state["matches"] = out
     return state.get("matches", [])
