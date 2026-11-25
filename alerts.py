@@ -12,7 +12,7 @@ FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
 INCLUDE_WOMEN = True
 STATE_FILE = "state.json"
-STATE_VERSION = 10
+STATE_VERSION = 11
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
@@ -22,9 +22,10 @@ FULL = {
     "afghanistan", "zimbabwe", "ireland"
 }
 LEAGUE_RE = re.compile(
-    r"\b(ipl|indian premier league|big bash|bbl|wbbl|bpl|bangladesh premier|"
-    r"psl|pakistan super league|sa20|ilt20|international league t20|cpl|"
-    r"caribbean premier|the hundred|major league cricket|mlc|wpl|icc|acc|"
+    r"\b(ipl|indian premier league|big bash|bbl|wbbl|women's big bash|"
+    r"bpl|bangladesh premier|psl|pakistan super league|sa20|ilt20|"
+    r"international league t20|cpl|caribbean premier|the hundred|"
+    r"major league cricket|mlc|wpl|women's premier league|icc|acc|"
     r"asia cup|world cup|champions trophy)\b"
 )
 FRANCHISE = [
@@ -38,14 +39,15 @@ FRANCHISE = [
     "chattogram", "sylhet strikers", "fortune barishal", "dhaka", "desert vipers",
     "gulf giants", "mi emirates", "sharjah warriors", "dubai capitals",
     "abu dhabi knight riders", "paarl royals", "joburg super kings", "durban",
-    "pretoria capitals", "mi cape town", "sunrisers eastern cape"
+    "pretoria capitals", "mi cape town", "sunrisers eastern cape",
+    "up warriorz", "delhi capitals women", "mumbai indians women", "gujarat giants"
 ]
 BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development", "academy", "softball", "rising stars")
 WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
 SERIES_KEYWORDS = [
-    "ILT20", "International League T20", "Indian Premier League", "Big Bash",
-    "Bangladesh Premier", "Pakistan Super League", "SA20", "Caribbean Premier",
-    "The Hundred", "Major League Cricket"
+    "ILT20", "International League T20", "Women's Big Bash", "Big Bash",
+    "Indian Premier League", "Women's Premier League", "Bangladesh Premier",
+    "Pakistan Super League", "SA20", "Caribbean Premier", "The Hundred", "Major League Cricket"
 ]
 YEARS = ("2026", "2027")
 esc = html.escape
@@ -56,12 +58,12 @@ def load_state():
     try:
         with open(STATE_FILE, encoding="utf-8") as f:
             s = json.load(f)
-        if s.get("v") in (7, 8, 9, STATE_VERSION):
-            s["v"] = STATE_VERSION
+        if s.get("v") == STATE_VERSION:
             return s
+        # ভার্সন আপডেট হলে পুরনো sent লিস্ট রাখবে কিন্তু ম্যাচ ক্যাশ রিফ্রেশ করবে
+        return {"v": STATE_VERSION, "sent": s.get("sent", {}), "odds": s.get("odds", {}), "open": s.get("open", {})}
     except Exception:
-        pass
-    return {"v": STATE_VERSION}
+        return {"v": STATE_VERSION}
 
 
 def save_state(s):
@@ -124,9 +126,16 @@ def is_bad(m):
     return (not INCLUDE_WOMEN) and any(t.endswith("-w") or t.endswith(" women") for t in teams)
 
 
+def base_country(t):
+    t = t.lower().strip()
+    if INCLUDE_WOMEN:
+        t = re.sub(r"(\s+women|\s*-w|\s*\(w\))$", "", t).strip()
+    return t
+
+
 def is_major(m):
     s = f"{m.get('name', '')} {m.get('series', '')}".lower()
-    teams = [t.lower() for t in (m.get("teams") or [])]
+    teams = [base_country(t) for t in (m.get("teams") or [])]
     if LEAGUE_RE.search(s) or any(f in s for f in FRANCHISE):
         return True
     return len(teams) == 2 and all(t in FULL for t in teams)
@@ -164,10 +173,11 @@ def active_series(state):
             if end and end < NOW - timedelta(days=2):
                 continue
             found[s["id"]] = name
-    ids = [[i, n] for i, n in found.items()][:8]
-    state["series_ts"] = NOW.isoformat()
-    state["series_ids"] = ids
-    return ids
+    ids = [[i, n] for i, n in found.items()][:10]
+    if ids:
+        state["series_ts"] = NOW.isoformat()
+        state["series_ids"] = ids
+    return state.get("series_ids", [])
 
 
 def series_matches(state):
@@ -187,7 +197,7 @@ def series_matches(state):
 
 def fetch_matches(state):
     ts = state.get("matches_ts")
-    if ts and NOW - parse(ts) < timedelta(hours=6):
+    if ts and NOW - parse(ts) < timedelta(hours=4):
         return state.get("matches", [])
     out, seen, keys = [], set(), set()
     for m in series_matches(state) + cricscore_matches():
@@ -205,9 +215,12 @@ def fetch_matches(state):
             "id": m["id"], "name": m["name"], "venue": m["venue"], "teams": m["teams"],
             "type": m["type"], "series": m["series"], "start": start.isoformat()
         })
-    state["matches_ts"] = (NOW if out else NOW - timedelta(hours=3)).isoformat()
-    state["matches"] = out
-    return out
+    if out:
+        state["matches_ts"] = NOW.isoformat()
+        state["matches"] = out
+    else:
+        state["matches_ts"] = (NOW - timedelta(hours=3)).isoformat()
+    return state.get("matches", [])
 
 
 def fetch_live_map(matches, state, force=False):
@@ -216,10 +229,12 @@ def fetch_live_map(matches, state, force=False):
     ts = state.get("live_ts")
     if not force and ts and NOW - parse(ts) < timedelta(minutes=10):
         return state.get("live_cache", {})
-    live_map = {x["id"]: x for x in (api("currentMatches", offset=0).get("data") or [])}
-    state["live_ts"] = NOW.isoformat()
-    state["live_cache"] = live_map
-    return live_map
+    data = api("currentMatches", offset=0).get("data")
+    if data is not None:
+        live_map = {x["id"]: x for x in data}
+        state["live_ts"] = NOW.isoformat()
+        state["live_cache"] = live_map
+    return state.get("live_cache", {})
 
 
 def match_details(mid, live_obj=None):
@@ -327,8 +342,8 @@ def team_match(t1, t2):
     a, b = t1.lower().strip(), t2.lower().strip()
     if a in b or b in a:
         return True
-    wa = set(a.split()) - {"cricket", "club", "team"}
-    wb = set(b.split()) - {"cricket", "club", "team"}
+    wa = set(a.split()) - {"cricket", "club", "team", "women"}
+    wb = set(b.split()) - {"cricket", "club", "team", "women"}
     return bool(wa and wb and (wa & wb))
 
 
@@ -501,7 +516,7 @@ def main():
     live_map = fetch_live_map(matches, state, force=is_manual)
     events = fetch_odds()
     if is_manual:
-        tg(f"✅ <b>Final Pro Engine (v10.2 Clean) Active</b>\n📡 <code>CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Cached Matches: {len(matches)}</code>")
+        tg(f"✅ <b>Final Pro Engine (v11 Men+Women) Active</b>\n📡 <code>CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Cached Matches: {len(matches)}</code>")
 
     today = NOW.astimezone(BDT).date().isoformat()
     if state.get("schedule_date") != today:
