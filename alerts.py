@@ -40,7 +40,7 @@ FRANCHISE = [
     "paarl royals", "joburg super kings", "durban", "pretoria capitals",
     "mi cape town", "sunrisers eastern cape"]
 BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development",
-              "academy", "softball", "rising stars", ""csa")
+              "academy", "softball", "rising stars",)
 WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
 SERIES_KEYWORDS = ["ILT20", "Indian Premier League", "Big Bash",
                    "Bangladesh Premier", "Pakistan Super League", "SA20",
