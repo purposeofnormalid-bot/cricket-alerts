@@ -12,10 +12,9 @@ MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 INCLUDE_WOMEN = False   # Women's ম্যাচ চাইলে True করুন
 
 STATE_FILE = "state.json"
-STATE_VERSION = 5
+STATE_VERSION = 6
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
-SERIES_CALLS = 0
 
 FULL = {"india", "australia", "england", "pakistan", "south africa",
         "new zealand", "sri lanka", "bangladesh", "west indies",
@@ -42,7 +41,11 @@ FRANCHISE = [
     "mi cape town", "sunrisers eastern cape"]
 BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development",
               "academy", "softball", "rising stars")
-WOMEN = ("women", "-w ", " w vs", "(w)")
+WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
+SERIES_KEYWORDS = ["ILT20", "Indian Premier League", "Big Bash",
+                   "Bangladesh Premier", "Pakistan Super League", "SA20",
+                   "Caribbean Premier", "The Hundred", "Major League Cricket"]
+YEARS = ("2026", "2027")
 
 esc = html.escape
 
@@ -85,6 +88,16 @@ def parse(s):
     return datetime.fromisoformat(s)
 
 
+def parse_dt(s):
+    try:
+        d = parse(str(s).replace("Z", ""))
+        if d.tzinfo is None:
+            return d.replace(tzinfo=timezone.utc)
+        return d.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
 def api(ep, **params):
     try:
         j = requests.get(f"https://api.cricapi.com/v1/{ep}",
@@ -94,56 +107,12 @@ def api(ep, **params):
         print(ep, "error:", type(e).__name__)
         return {}
     info = j.get("info", {})
-    print(ep, params, "->", j.get("status"), "| hits:",
-          info.get("hitsToday"), "/", info.get("hitsLimit"),
-          "| rows:", info.get("totalRows"))
+    print(ep, {k: v for k, v in params.items() if k != "apikey"}, "->",
+          j.get("status"), "| hits:", info.get("hitsToday"), "/",
+          info.get("hitsLimit"))
     if j.get("status") != "success":
         print("CricAPI problem:", j.get("reason", "unknown"))
     return j
-
-
-def page_dates(tag, data):
-    ds = sorted(x.get("dateTimeGMT", "") for x in data if x.get("dateTimeGMT"))
-    if ds:
-        print(tag, "dates:", ds[0][:10], "to", ds[-1][:10])
-
-
-def fetch_all(ep, max_pages=4):
-    rows = []
-    first = api(ep, offset=0)
-    d0 = first.get("data") or []
-    page_dates(f"{ep} p0", d0)
-    rows += d0
-    try:
-        total = int(first.get("info", {}).get("totalRows") or 0)
-    except Exception:
-        total = 0
-    pages = min(max_pages, -(-total // 25))
-    for p in range(1, pages):
-        d = api(ep, offset=p * 25).get("data") or []
-        page_dates(f"{ep} p{p}", d)
-        rows += d
-    return rows
-
-
-def series_name(sid, state):
-    global SERIES_CALLS
-    cache = state.setdefault("series", {})
-    if not sid:
-        return ""
-    if sid in cache:
-        return cache[sid]
-    if SERIES_CALLS >= 15:
-        return ""
-    SERIES_CALLS += 1
-    j = api("series_info", id=sid)
-    try:
-        name = j["data"]["info"]["name"]
-    except Exception:
-        name = ""
-    if name:
-        cache[sid] = name
-    return name
 
 
 def bad_text(s):
@@ -154,22 +123,21 @@ def bad_text(s):
 
 
 def is_bad(m):
-    if bad_text(m.get("name")):
+    if bad_text(m.get("name")) or bad_text(m.get("series")):
         return True
     teams = [t.lower().strip() for t in (m.get("teams") or [])]
-    if any(t == "tbc" for t in teams):
+    if len(teams) < 2 or any(t in ("", "tbc") for t in teams):
         return True
     if any(t.endswith(" a") for t in teams):
         return True
-    if not INCLUDE_WOMEN and any(t.endswith("-w") for t in teams):
+    if not INCLUDE_WOMEN and any(t.endswith("-w") or t.endswith(" women")
+                                 for t in teams):
         return True
     return False
 
 
-def is_major(m, series):
-    if is_bad(m) or (series and bad_text(series)):
-        return False
-    s = f"{m.get('name', '')} {series}".lower()
+def is_major(m):
+    s = f"{m.get('name', '')} {m.get('series', '')}".lower()
     teams = [t.lower() for t in (m.get("teams") or [])]
     if LEAGUE_RE.search(s):
         return True
@@ -178,44 +146,102 @@ def is_major(m, series):
     return len(teams) == 2 and all(t in FULL for t in teams)
 
 
+def clean_team(t):
+    return re.sub(r"\s*\[.*?\]", "", t or "").strip()
+
+
+def cricscore_matches():
+    j = api("cricScore")
+    data = j.get("data") or []
+    print("cricScore rows:", len(data))
+    sample = sorted({str(x.get("series")) for x in data})[:12]
+    print("cricScore series sample:", sample)
+    out = []
+    for x in data:
+        if x.get("ms") == "result" or not x.get("dateTimeGMT"):
+            continue
+        teams = [clean_team(x.get("t1")), clean_team(x.get("t2"))]
+        out.append({"id": x["id"],
+                    "name": f"{teams[0]} vs {teams[1]}, {x.get('matchType', '')}",
+                    "venue": "", "teams": teams,
+                    "type": (x.get("matchType") or "").upper(),
+                    "series": x.get("series") or "",
+                    "dt": x["dateTimeGMT"], "trusted": False})
+    return out
+
+
+def active_series(state):
+    ts = state.get("series_ts")
+    if ts and NOW - parse(ts) < timedelta(days=3):
+        return state.get("series_ids", [])
+    found = {}
+    for kw in SERIES_KEYWORDS:
+        j = api("series", offset=0, search=kw)
+        for s in j.get("data") or []:
+            name = s.get("name", "")
+            if not any(y in name for y in YEARS) or bad_text(name):
+                continue
+            end = parse_dt(s.get("endDate", ""))
+            if end and end < NOW - timedelta(days=2):
+                continue
+            found[s["id"]] = name
+    ids = [[i, n] for i, n in found.items()][:8]
+    print("series found:", [n for _, n in ids])
+    state["series_ts"] = NOW.isoformat()
+    state["series_ids"] = ids
+    return ids
+
+
+def series_matches(state):
+    out = []
+    for sid, sname in active_series(state):
+        j = api("series_info", id=sid)
+        for m in (j.get("data") or {}).get("matchList") or []:
+            if m.get("matchEnded") or not m.get("dateTimeGMT"):
+                continue
+            teams = m.get("teams") or [t.get("name", "")
+                                       for t in m.get("teamInfo", [])]
+            out.append({"id": m["id"], "name": m.get("name", ""),
+                        "venue": m.get("venue", ""), "teams": teams,
+                        "type": (m.get("matchType") or "").upper(),
+                        "series": sname, "dt": m["dateTimeGMT"],
+                        "trusted": True})
+    return out
+
+
 def fetch_matches(state):
     ts = state.get("matches_ts")
     if ts and NOW - parse(ts) < timedelta(hours=6):
         return state.get("matches", [])
 
-    rows = fetch_all("currentMatches") + fetch_all("matches")
-
-    out, seen, count, shown = [], set(), 0, 0
-    for m in rows:
-        if m.get("matchEnded") or not m.get("dateTimeGMT"):
+    cands = series_matches(state) + cricscore_matches()
+    out, seen, keys, shown = [], set(), set(), 0
+    for m in cands:
+        if is_bad(m):
             continue
-        if m["id"] in seen or is_bad(m):
+        start = parse_dt(m["dt"])
+        if (not start or start - NOW > timedelta(hours=36)
+                or NOW - start > timedelta(hours=8)):
             continue
-        seen.add(m["id"])
-        start = parse(m["dateTimeGMT"]).replace(tzinfo=timezone.utc)
-        if start - NOW > timedelta(hours=36) or NOW - start > timedelta(hours=8):
+        key = (tuple(sorted(t.lower() for t in m["teams"])),
+               start.strftime("%Y-%m-%d"))
+        if m["id"] in seen or key in keys:
             continue
-        count += 1
-        series = ""
-        ok = is_major(m, "")
-        if not ok:
-            series = series_name(m.get("series_id"), state)
-            ok = is_major(m, series)
-        if not ok:
-            if shown < 20:
-                print("not major:", m.get("name"), "|", series)
+        if not (m["trusted"] or is_major(m)):
+            if shown < 15:
+                print("not major:", m["name"], "|", m.get("series", ""))
                 shown += 1
             continue
-        print("major:", m.get("name"), "|",
+        seen.add(m["id"])
+        keys.add(key)
+        print("major:", m["name"], "|",
               start.astimezone(BDT).strftime("%d %b %I:%M %p"), "BDT")
-        out.append({"id": m["id"], "name": m.get("name", ""),
-                    "venue": m.get("venue", ""),
-                    "teams": m.get("teams", []),
-                    "type": (m.get("matchType") or "").upper(),
-                    "series": series, "start": start.isoformat()})
-    print(f"rows: {len(rows)}, in 36h window: {count}, major found: {len(out)}")
-    # পাওয়া গেলে ৬ ঘণ্টা cache; না পেলে ৩ ঘণ্টা পর আবার চেষ্টা
-    state["matches_ts"] = (NOW if out else NOW - timedelta(hours=3)).isoformat()
+        out.append({"id": m["id"], "name": m["name"], "venue": m["venue"],
+                    "teams": m["teams"], "type": m["type"],
+                    "series": m["series"], "start": start.isoformat()})
+    print(f"candidates: {len(cands)}, major found: {len(out)}")
+    # পাওয়া গেলে ৬ ঘণ্টা cache; না পেলে ৪ ঘণ্টা পর আবার চেষ্টা
+    state["matches_ts"] = (NOW if out else NOW - timedelta(hours=2)).isoformat()
     state["matches"] = out
     return out
 
@@ -226,11 +252,13 @@ def match_info(mid):
                          params={"apikey": CRIC, "id": mid}, timeout=25).json()
         d = j.get("data", {})
         if d.get("tossWinner"):
-            return (f"Toss: {d['tossWinner']} won the toss and chose to "
+            toss = (f"Toss: {d['tossWinner']} won the toss and chose to "
                     f"{d.get('tossChoice', '?')}")
-        return "Toss: not happened yet / not in data"
+        else:
+            toss = "Toss: not happened yet / not in data"
+        return toss, d.get("venue", "")
     except Exception:
-        return "Toss: data unavailable"
+        return "Toss: data unavailable", ""
 
 
 def weather(venue, start):
@@ -375,7 +403,7 @@ def label(m):
 
 def main():
     state = load_state()
-    for k in ("sent", "odds", "open", "series"):
+    for k in ("sent", "odds", "open"):
         state.setdefault(k, {})
 
     if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
@@ -434,8 +462,14 @@ def main():
             f"(implied {opening[t]['p']}% -> {v['p']}%)"
             for t, v in probs.items() if t in opening) or "not available"
 
+        toss = "Toss: not happened yet"
+        if stage in (20, 5) or not m.get("venue"):
+            toss2, v = match_info(m["id"])
+            if v and not m.get("venue"):
+                m["venue"] = v
+            if stage in (20, 5):
+                toss = toss2
         wx = weather(m["venue"], start)
-        toss = match_info(m["id"]) if stage in (20, 5) else "Toss: not happened yet"
         analysis = gemini(m, start, stage, wx, toss, odds_txt)
 
         vs = " vs ".join(m["teams"]) or m["name"]
