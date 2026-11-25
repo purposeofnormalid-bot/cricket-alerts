@@ -16,7 +16,7 @@ FALLBACK_MODEL = "gemini-3.5-flash-lite"
 INCLUDE_WOMEN = False  # Women's ম্যাচ চাইলে True করুন
 
 STATE_FILE = "state.json"
-STATE_VERSION = 9
+STATE_VERSION = 10
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
@@ -67,7 +67,8 @@ def load_state():
     try:
         with open(STATE_FILE, encoding="utf-8") as f:
             s = json.load(f)
-        if s.get("v") in (7, 8, STATE_VERSION):
+        # আগের ক্যাশ ধরে রাখবে যাতে বাড়তি CricAPI ক্রেডিট খরচ না হয়
+        if s.get("v") in (7, 8, 9, STATE_VERSION):
             s["v"] = STATE_VERSION
             return s
     except Exception:
@@ -296,13 +297,13 @@ def fetch_live_map(matches, state, force=False):
 
 
 def match_details(mid, live_obj=None):
-    toss = "Toss: not happened yet"
+    toss = "Pending (Toss ~30m pre-match)"
     venue = ""
     status = (live_obj or {}).get("status", "")
     score = (live_obj or {}).get("score") or []
     started = bool((live_obj or {}).get("matchStarted"))
     ended = bool((live_obj or {}).get("matchEnded"))
-    xi_txt = "Not confirmed yet"
+    xi_txt = "Pending"
 
     try:
         j = api("match_info", id=mid)
@@ -313,10 +314,7 @@ def match_details(mid, live_obj=None):
         started = bool(d.get("matchStarted", started))
         ended = bool(d.get("matchEnded", ended))
         if d.get("tossWinner"):
-            toss = (
-                f"Confirmed Toss: {d['tossWinner']} won the toss and "
-                f"elected to {d.get('tossChoice', '?')}"
-            )
+            toss = f"{d['tossWinner']} won toss & elected to {d.get('tossChoice', '?')}"
         players = d.get("players") or []
         if players:
             xi_parts = []
@@ -338,7 +336,7 @@ def match_details(mid, live_obj=None):
             f"{s.get('inning', 'Inning')}: {s.get('r', 0)}/{s.get('w', 0)} "
             f"({s.get('o', 0)} ov)"
         )
-    score_txt = " | ".join(score_lines) if score_lines else "Match not started"
+    score_txt = " | ".join(score_lines) if score_lines else "Not started"
 
     return {
         "toss": toss,
@@ -410,34 +408,31 @@ def weather_info(venue, start):
         i = w["time"].index(start.strftime("%Y-%m-%dT%H:00"))
         rain = w["precipitation_probability"][i]
         cloud = w["cloud_cover"][i]
-        hum = w["relative_humidity_2m"][i]
         dew = w["dew_point_2m"][i]
+        hum = w["relative_humidity_2m"][i]
         is_night = start.astimezone(BDT).hour >= 17
-        dew_risk = "HIGH DEW (Chasing Edge)" if (is_night and (hum >= 68 or dew >= 17)) else "Low/Moderate Dew"
-        return (
-            f"Rain {rain}%, Cloud {cloud}%, Humidity {hum}%, "
-            f"Dew {dew}C ({dew_risk})"
-        )
+        dew_tag = "High" if (is_night and (hum >= 68 or dew >= 17)) else "Low"
+        return f"Rain {rain}% | Cloud {cloud}% | Dew {dew}°C ({dew_tag})"
     except Exception:
-        return "Weather: not available"
+        return "Weather N/A"
 
 
 def research_baseline(m, start, wx):
     fmt = (m.get("type") or "").upper()
     is_night = start.astimezone(BDT).hour >= 17
-    high_dew = "HIGH DEW" in wx
+    high_dew = "(High)" in wx
 
     if "TEST" in fmt:
-        toss_impact = "HIGH IMPACT (+4.9% historical; 47% vs 34% in last 5 yrs)"
-        home_bias = "Strong Home Baseline (~59% win rate; log-odds +0.50)"
+        toss_impact = "High Impact (+4.9% Edge; 47% vs 34% in 5 yrs)"
+        home_bias = "Test Home Bias (~59% Win | +0.50 Log-Odds)"
     elif "ODI" in fmt:
-        toss_impact = "CRITICAL DEW EDGE (Day-Night)" if high_dew else "LOW IMPACT (+1.8% to +2.8% overall)"
-        home_bias = "Strong Home Baseline (~59% win rate; log-odds +0.50)"
+        toss_impact = "Critical Dew Edge (+5.5% Night Chase)" if high_dew else "Low Impact (+2.2% Baseline)"
+        home_bias = "ODI Home Bias (~59% Win | +0.50 Log-Odds)"
     else:
-        toss_impact = "CRITICAL CHASING EDGE (Dew Factor)" if high_dew else "LOW-MODERATE (~2.8% baseline)"
-        home_bias = "Neutral Home Baseline (~50% in T20; zero home bias)"
+        toss_impact = "Critical Dew Edge (+6.5% Win Boost)" if high_dew else "Low-Moderate (+2.8% Baseline)"
+        home_bias = "T20 Neutral Home (50% Baseline)"
 
-    expected_call = "Bowl First (Dew / Swing advantage)" if (high_dew or is_night) else "Pitch-dependent (Bat First if dry)"
+    expected_call = "Bowl First" if (high_dew or is_night) else "Bat First"
     return toss_impact, home_bias, expected_call
 
 
@@ -520,27 +515,29 @@ def probs_for(match, events):
 
 def analyze_market_flow(opening, probs):
     if not probs or not opening:
-        return "Odds opening soon / not listed yet", "Market flow pending (Odds not active yet)"
+        return "Odds Pending (Not Listed Yet)", "Pending Market Open"
     parts = []
     max_shift = 0.0
     flow_team = ""
     for t, v in probs.items():
         if t in opening:
-            op_o, cur_o = opening[t]["o"], v["o"]
             op_p, cur_p = opening[t]["p"], v["p"]
             diff = round(cur_p - op_p, 1)
-            parts.append(f"{t}: {op_o} ➔ {cur_o} (Implied {op_p}% ➔ {cur_p}%, {diff:+.1f}%)")
-            if diff > max_shift:
+            parts.append(f"{t} {v['o']} ({cur_p}%)")
+            if abs(diff) > abs(max_shift):
                 max_shift = diff
                 flow_team = t
 
-    odds_txt = "; ".join(parts) if parts else "Odds pending"
+    shift_str = f" | Shift: {max_shift:+.1f}%" if max_shift != 0 else " | Shift: 0.0%"
+    odds_txt = " vs ".join(parts) + shift_str
     if max_shift >= 3.5:
-        flow_txt = f"HEAVY PUBLIC/SHARP FLOW on {flow_team} (+{max_shift}% implied shift)"
+        flow_txt = f"Heavy Flow on {flow_team} ({max_shift:+.1f}% Implied Shift)"
     elif max_shift >= 1.5:
-        flow_txt = f"MILD DRIFT toward {flow_team} (+{max_shift}% shift)"
+        flow_txt = f"Mild Flow on {flow_team} ({max_shift:+.1f}% Shift)"
+    elif max_shift <= -1.5:
+        flow_txt = f"Drift Against {flow_team} ({max_shift:+.1f}% Shift)"
     else:
-        flow_txt = "FLAT / BALANCED MARKET (পাবলিক এখনো একতরফা কোনো দলে যায়নি)"
+        flow_txt = "Balanced Market (No One-Sided Flow)"
     return odds_txt, flow_txt
 
 
@@ -549,7 +546,7 @@ def call_gemini(prompt):
         for use_search in (True, False):
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 2200, "temperature": 0.35}
+                "generationConfig": {"maxOutputTokens": 1200, "temperature": 0.25}
             }
             if use_search:
                 payload["tools"] = [{"google_search": {}}]
@@ -574,80 +571,87 @@ def call_gemini(prompt):
 
 def generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, base_rules):
     vs = " vs ".join(m["teams"]) or m["name"]
+    t1 = m["teams"][0] if len(m["teams"]) >= 1 else "Team A"
+    t2 = m["teams"][1] if len(m["teams"]) >= 2 else "Team B"
     toss_impact, home_bias, expected_call = base_rules
 
     if stage_key == "toss":
-        prompt = f"""You are a quantitative cricket analyst. Write a STANDALONE PRE-TOSS & CONDITION ALERT (50-55 minutes before match start).
+        prompt = f"""You are a quantitative cricket analyst. Output ONLY crisp 1-line English key points.
 
-VERIFIED DATA:
-- Match: {vs} ({m.get('type', '')}, {m.get('series', '')})
+DATA:
+- Match: {vs} ({m.get('type', '')})
 - Venue: {m['venue']}
-- Start: {start.astimezone(BDT):%d %b %I:%M %p} BDT
-- Weather & Dew: {wx}
-- Statistical Toss Baseline: {toss_impact}
-- Expected Optimal Toss Call: {expected_call}
-- Early H2H Market Odds: {odds_txt}
-- Public / Market Flow Status: {flow_txt}
+- Weather: {wx}
+- Toss Impact: {toss_impact}
+- Expected Call: {expected_call}
+- Market Odds: {odds_txt}
+- Public Flow: {flow_txt}
 
-RULES:
-- Provide a **Toss Winner Prediction** naming ONE specific team with a realistic pattern-based percentage (between 51% and 56%, e.g., `53% vs 47%`), explaining the tactical/captaincy/venue streak basis in Bengali, while briefly noting a coin flip is inherently 50/50 random.
-- Clearly report the **Public / Market Flow** status from the data above.
-- Use Google Search if available to check the real pitch report (Flat / Green / Dry / Dead), venue last 5 bat-first vs chase record, and captaincy toss trends for {vs}.
-- Write explanations in concise, clear **Bengali** (keep cricket/statistical terms in English).
-- Use **double asterisks** for bold labels. Max 1800 characters. Output ONLY this exact format:
+STRICT RULES:
+- 100% ENGLISH ONLY. Zero Bengali. Zero paragraphs. Zero square brackets `[...]` in output.
+- Every single bullet/number MUST fit on ONE short line.
+- Use Google Search if available to find real Captain toss % and Venue Bat/Bowl First % for {m['venue']}.
+- Pick ONE team for Expected Toss Winner with a realistic pattern-based split (`52% vs 48%` to `56% vs 44%`) and a 4-6 word reason.
+- Output EXACTLY these 6 lines:
 
-• **Expected Toss Winner:** [Team A / Team B] (`53% vs 47%`) — (ক্যাপ্টেন/ভেন্যু ট্রেন্ড ও কন্ডিশন অনুযায়ী কারণ বাংলায়; নোট: কয়েন ফ্লিপ মূলত ৫০/৫০ র‍্যান্ডম)
-• **Toss Impact Rating:** {toss_impact}
-• **Expected Toss Decision:** [Bat First or Bowl First] — (সংক্ষিপ্ত বাংলা কারণ: ভেন্যু ট্রেন্ড ও শিশির/মেঘ)
-• **Public & Market Flow:** {flow_txt}
-• **Pitch & Conditions:** [Flat/Green/Dry/Dead] | {wx}
-• **Venue Trend & Team News:** (ভেন্যুর শেষ ৫ ম্যাচের ব্যাট/চেজ রেকর্ড ও ইনজুরি আপডেট বাংলায়)
-> 🎯 **Pre-Toss Takeaway:** [টস জিতলে কোন সিদ্ধান্তটি সেরা এবং মার্কেটে কী নজরে রাখতে হবে — বাংলায়]"""
+1. **Toss Impact Rating:** `{toss_impact}`
+2. **Captain & Venue Trend:** `[Captain A XX% vs Captain B YY% | Venue: ZZ% Bowl/Bat First]`
+3. **Pitch & Dew Trigger:** `[Flat/Green/Dry/Dead Track] | {wx}`
+4. **Public & Market Flow:** `{odds_txt} | {flow_txt}`
+5. **Expected Toss Decision:** `{expected_call} ([XX]% Probability — [3-5 word reason])`
+
+> 🎯 **Expected Toss Winner:** `[Winner Name] ([XX]% vs [YY]%)` — *[4-6 word venue/captaincy reason]*"""
 
     else:
         stage_labels = {
-            "prematch": "15m Pre-Match (Post-Toss & Playing XI)",
-            "6ov": "In-Play: 6-Over Powerplay Pulse",
-            "10ov": "In-Play: 10-Over Session Pulse",
-            "break": "In-Play: 1st Innings Break (80-88%+ Golden Chase Window)",
-            "preview": "Live / Upcoming Match Snapshot (Manual Check)"
+            "prematch": "15m Post-Toss Final",
+            "6ov": "Live 6-Over PP Pulse",
+            "10ov": "Live 10-Over Pulse",
+            "break": "1st Innings Break • Golden Window",
+            "preview": "Live / Pre-Match Snapshot"
         }
         stage_title = stage_labels.get(stage_key, stage_key)
-        prompt = f"""You are a quantitative cricket trading & probability analyst. Write the analytical report for **{stage_title}**.
+        is_break = stage_key == "break"
+        inn_line = (
+            "• **1st Innings Target (`Actual`):** `Target [XXX]` | **Chase:** `[XX]%` | **Defend:** `[YY]%`"
+            if is_break else
+            "• **1st Innings Par (`Line: [XXX].5`):** `[XXX] – [YYY]` | **Over:** `[XX]%` | **Under:** `[YY]%`"
+        )
 
-VERIFIED DATA:
-- Match: {vs} ({m.get('type', '')}, {m.get('series', '')})
+        prompt = f"""You are a quantitative cricket trading analyst. Output ONLY crisp 1-line English key points for **{stage_title}**.
+
+DATA:
+- Match: {vs} ({m.get('type', '')})
 - Venue: {m['venue']}
-- Stage: {stage_title}
-- Live Status & Score: {info['status']} | {info['score_txt']}
-- Toss Info: {info['toss']}
+- Live Score: {info['score_txt']}
+- Toss: {info['toss']}
 - Playing XI: {info['xi']}
-- Weather & Dew: {wx}
-- Format Home Bias Rule: {home_bias}
-- H2H Market Odds & Implied Probabilities: {odds_txt}
-- Public / Market Flow Status: {flow_txt}
+- Weather: {wx}
+- Home Bias Rule: {home_bias}
+- Market Odds: {odds_txt}
+- Public Flow: {flow_txt}
 
-RULES:
-- Compare our research-based **Model Fair Win %** (combining Format Home Bias + Playing XI strength + Pitch/Dew + Actual Toss/Live Score/RRR) against the **Market Implied %** from H2H odds.
-- For In-Play stages (especially 1st Innings Break), factor in actual runs, wickets in hand, Required Run Rate (RRR), true pitch behavior seen so far, and evening dew.
-- Only flag a **VALUE EDGE** if Model Fair Win % diverges clearly (>4-5%) from Market Implied %; otherwise write `⚠️ NO CLEAR EDGE — SKIP`.
-- Write explanations in concise, clear **Bengali** (keep technical terms in English).
-- Use **double asterisks** for bold labels. Max 2400 characters. Output ONLY this exact format:
+STRICT RULES:
+- 100% ENGLISH ONLY. Zero Bengali. Zero paragraphs. Zero square brackets `[...]` in output.
+- Every single item MUST be ONE compact line.
+- Ensure Over% + Under% = 100%, Chasing Win% + Defending Win% = 100%, and {t1}% + {t2}% = 100%.
+- Use `CLEAR VALUE EDGE` only if Model Fair Win % differs from Market Implied % by >4.5%; otherwise use `SLIGHT EDGE` or `NO CLEAR EDGE — SKIP`.
+- Output EXACTLY this structure:
 
-━━━ 🪙 **TOSS & LIVE SITUATION** ━━━
-• **Toss & Pitch Reality:** {info['toss']} | পিচ ও কন্ডিশন বিশ্লেষণ (বাংলায়)
-• **Live Score / Status:** {info['score_txt']}
+━━━ 🪙 **MATCH KEY POINTS** ━━━
+1. **Confirmed Toss:** `{info['toss']}`
+2. **Market Odds (H2H):** `{odds_txt}`
+3. **Public & Sharp Flow:** `{flow_txt}`
+4. **Model vs. Market:** `Model Fair Win: {t1} [XX.X]% vs {t2} [YY.Y]% | Gap: [+/-X.X]%`
+5. **Core Edge Drivers:** `{home_bias} + [XI/Pitch/Live RRR 4-6 words]`
 
-━━━ 📈 **MODEL vs. MARKET PROBABILITY** ━━━
-• **Market Odds (H2H):** {odds_txt}
-• **Public & Market Flow:** {flow_txt}
-• **Model Fair Win %:** [Team A: XX%] vs [Team B: YY%] | **Divergence Gap:** [+/-X.X%]
-• **Key Drivers:** [Home Bias + XI Strength + Pitch/Dew/RRR — বাংলায় মূল কারণ]
-> 🎯 **AI Verdict:** [Team Name — Clear Value Edge / ⚠️ NO CLEAR EDGE — SKIP]
+> 🎯 **Expected Match Winner:** `[Team Name] ([XX.X]%)` — `[CLEAR VALUE EDGE / SLIGHT EDGE / NO CLEAR EDGE — SKIP]`
 
-━━━ ⚡ **SESSION & INNINGS PROJECTION** ━━━
-• **6-Ov PP / Current Phase:** [Range or Actual] | **1st Inn Par / Target:** [Range or Target]
-• **Session / Chase Bias:** [Over / Under / Chase / Defend] — (সংক্ষিপ্ত বাংলা কারণ)"""
+━━━ ⚡ **SESSION & CHASE PROBABILITIES** ━━━
+• **6-Over PP (`Line: [XX].5`):** `[XX] – [YY]` | **Over:** `[XX]%` | **Under:** `[YY]%`
+• **10-Over Session (`Line: [XX].5`):** `[XX] – [YY]` | **Over:** `[XX]%` | **Under:** `[YY]%`
+{inn_line}
+• **Match Outcome Split:** **Chasing Win:** `[XX]%` | **Defending Win:** `[YY]%`"""
 
     return call_gemini(prompt)
 
@@ -656,14 +660,16 @@ def to_html(t):
     lines = []
     for raw_line in t.splitlines():
         stripped = raw_line.strip()
-        if stripped.startswith(">"):
-            inner = esc(stripped.lstrip(">").strip())
-            inner = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", inner)
-            lines.append(f"<blockquote>{inner}</blockquote>")
+        is_quote = stripped.startswith(">")
+        clean = stripped.lstrip(">").strip() if is_quote else raw_line
+        line = esc(clean)
+        line = re.sub(r"`([^`]+)`", r"<code>\1</code>", line)
+        line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+        line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", line)
+        if is_quote:
+            lines.append(f"<blockquote>{line}</blockquote>")
         else:
-            line = esc(raw_line)
-            line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
-            lines.append(line.replace("`", ""))
+            lines.append(line)
     return "\n".join(lines)
 
 
@@ -688,12 +694,12 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, info=None, 
                 m["venue"] = info["venue"]
         else:
             info = {
-                "toss": "Toss: not happened yet (scheduled ~30m pre-match)",
+                "toss": "Pending (Toss ~30m pre-match)",
                 "venue": m.get("venue", ""),
                 "status": "Scheduled",
                 "score": [],
-                "score_txt": "Pre-Match",
-                "xi": "Pending toss"
+                "score_txt": "Not started",
+                "xi": "Pending"
             }
 
     wx = weather_info(m["venue"], start)
@@ -703,9 +709,9 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, info=None, 
     vs = " vs ".join(m["teams"]) or m["name"]
     if stage_key == "toss":
         head = (
-            f"🪙 <b>PRE-TOSS & CONDITION ALERT (<code>50–55m Pre-Match</code>)</b>\n"
+            f"🪙 <b>PRE-TOSS ANALYTICS (<code>50–55m Pre-Match</code>)</b>\n"
             f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
-            f"🏟️ Venue: {esc(m['venue'])} | ⏰ Start: <code>{start.astimezone(BDT):%I:%M %p} BDT</code>\n\n"
+            f"🏟️ {esc(m['venue'])} | ⏰ <code>{start.astimezone(BDT):%I:%M %p} BDT</code>\n\n"
         )
     else:
         badge_map = {
@@ -713,22 +719,21 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, info=None, 
             "6ov": "Live 6-Over PP Pulse",
             "10ov": "Live 10-Over Pulse",
             "break": "1st Innings Break • Golden Window",
-            "preview": "Manual Live / Match Check"
+            "preview": "Live / Pre-Match Snapshot"
         }
         head = (
             f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
-            f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{badge_map.get(stage_key, stage_key)}</code>\n\n"
+            f"🏟️ {esc(m['venue'])} | ⏰ <code>{badge_map.get(stage_key, stage_key)}</code>\n\n"
         )
 
     if analysis:
         body = to_html(analysis[:3400])
     else:
         body = (
-            f"📊 {esc(odds_txt)}\n"
-            f"📈 {esc(flow_txt)}\n"
-            f"🌦 {esc(wx)}\n"
-            f"🪙 {esc(info['toss'])}\n"
-            f"🏏 {esc(info['score_txt'])}"
+            f"1. <b>Toss:</b> <code>{esc(info['toss'])}</code>\n"
+            f"2. <b>Market:</b> <code>{esc(odds_txt)}</code>\n"
+            f"3. <b>Flow:</b> <code>{esc(flow_txt)}</code>\n"
+            f"4. <b>Conditions:</b> <code>{esc(wx)}</code>"
         )
 
     ok = tg(head + body)
@@ -748,10 +753,8 @@ def main():
     events = fetch_odds()
 
     if is_manual:
-        diag = f"CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Major Matches: {len(matches)}"
-        if API_DIAG["reason"]:
-            diag += f" | Note: {API_DIAG['reason']}"
-        tg(f"✅ Final Engine (Research v9) চালু আছে।\n📡 <code>{esc(diag)}</code>")
+        diag = f"CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Cached Matches: {len(matches)}"
+        tg(f"✅ <b>Final Pro Engine (v10) Active</b>\n📡 <code>{esc(diag)}</code>")
 
     # Format A: Daily Major Schedule (after 12:01 AM BDT)
     today = NOW.astimezone(BDT).date().isoformat()
@@ -766,7 +769,7 @@ def main():
         d = NOW.astimezone(BDT).strftime("%d %b %Y")
         head = (
             f"📅 <b>TODAY'S MAJOR CRICKET SCHEDULE (<code>{d}</code>)</b> | "
-            f"📊 <b>Major Matches:</b> <code>{len(todays)}</code>\n\n"
+            f"📊 <b>Total:</b> <code>{len(todays)}</code>\n\n"
         )
         lines = []
         for i, m in enumerate(todays, 1):
@@ -776,7 +779,7 @@ def main():
                 f"{i}. 🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b> | "
                 f"⏰ <code>{t} BDT</code> | 🏟️ {esc(m['venue'])}"
             )
-        if tg(head + ("\n".join(lines) if lines else "আজ কোনো major ম্যাচ নেই।")):
+        if tg(head + ("\n".join(lines) if lines else "No major matches scheduled today.")):
             state["schedule_date"] = today
 
     # Scheduled Triggers: Format B1 (50-55m Pre-Toss) & Format B2 (15m Post-Toss + In-Play)
@@ -804,7 +807,7 @@ def main():
         if dispatch_card(m, start, stage_key, state, events, live_obj=live_obj, info=info, mark_sent=True):
             cards_sent += 1
 
-    # ম্যানুয়ালি Run workflow চাপলে ১টি লাইভ/পরবর্তী ম্যাচের প্রিভিউ কার্ড পাঠাবে
+    # ম্যানুয়ালি Run workflow চাপলে ১টি প্রিভিউ কার্ড পাঠাবে
     if is_manual and cards_sent == 0 and matches:
         target = next((m for m in matches if m["id"] in live_map), matches[0])
         dispatch_card(
