@@ -10,7 +10,7 @@ GEM = os.environ["GEMINI_API_KEY"]
 PRIMARY_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
-INCLUDE_WOMEN = False
+INCLUDE_WOMEN = True
 STATE_FILE = "state.json"
 STATE_VERSION = 10
 BDT = timezone(timedelta(hours=6))
