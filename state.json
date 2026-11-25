@@ -1,9 +1,9 @@
 {
- "v": 6,
+ "v": 7,
  "sent": {},
  "odds": {},
  "open": {},
- "series_ts": "2026-11-25T07:06:04.726300+00:00",
+ "series_ts": "2026-11-25T07:14:34.646037+00:00",
  "series_ids": [
   [
    "87c62aac-bc3c-4738-ab93-19da0690488f",
@@ -16,6 +16,10 @@
   [
    "c6ae878d-fcb7-4342-a7d7-a65ee3fe3de2",
    "Big Bash League 2026-27"
+  ],
+  [
+   "99c71a79-bc1f-4496-be02-f6b9a2be03ba",
+   "Womens Big Bash League 2026"
   ],
   [
    "9aede005-627e-47d9-8cad-088c8f5585d7",
@@ -32,61 +36,45 @@
   [
    "d03f2842-5919-4d94-b48a-c02d8f98af49",
    "CSA Provincial One-Day Challenge Division Two 2026-27"
-  ],
-  [
-   "4e9b136f-04eb-4f34-a30a-26f954576a12",
-   "CSA Four-Day Series Division One 2026-27"
   ]
  ],
- "matches_ts": "2026-11-25T07:06:04.726300+00:00",
+ "matches_ts": "2026-11-25T07:14:34.646037+00:00",
  "matches": [
   {
-   "id": "65da601f-4e46-411a-acc4-37bdf68ba6ed",
-   "name": "Boland vs Knights, 13th Match, CSA Four-Day Series Division One 2026-27",
-   "venue": "Boland Park, Paarl",
+   "id": "8c276df2-f50f-44d0-8b8f-645b5c538456",
+   "name": "Sydney Thunder Women vs Adelaide Strikers Women, 34th Match, Womens Big Bash League 2026",
+   "venue": "North Sydney Oval, Sydney",
    "teams": [
-    "Boland",
-    "Knights"
+    "Sydney Thunder Women",
+    "Adelaide Strikers Women"
    ],
-   "type": "TEST",
-   "series": "CSA Four-Day Series Division One 2026-27",
-   "start": "2026-11-26T08:00:00+00:00"
+   "type": "T20",
+   "series": "Womens Big Bash League 2026",
+   "start": "2026-11-26T04:40:00+00:00"
   },
   {
-   "id": "3951705c-3438-4d7f-a901-6c49951ababe",
-   "name": "Warriors vs Dolphins, 15th Match, CSA Four-Day Series Division One 2026-27",
-   "venue": "St George's Park, Gqeberha",
+   "id": "411e1c08-86e0-46d0-a6f6-d086058fd973",
+   "name": "Melbourne Renegades Women vs Brisbane Heat Women, 33rd Match, Womens Big Bash League 2026",
+   "venue": "Junction Oval, Melbourne",
    "teams": [
-    "Warriors",
-    "Dolphins"
+    "Melbourne Renegades Women",
+    "Brisbane Heat Women"
    ],
-   "type": "TEST",
-   "series": "CSA Four-Day Series Division One 2026-27",
-   "start": "2026-11-26T08:00:00+00:00"
+   "type": "T20",
+   "series": "Womens Big Bash League 2026",
+   "start": "2026-11-25T04:40:00+00:00"
   },
   {
-   "id": "41e79191-0939-477d-9cc6-e3b67465d62f",
-   "name": "Western Province vs Titans, 14th Match, CSA Four-Day Series Division One 2026-27",
-   "venue": "Newlands, Cape Town",
+   "id": "5ac40469-f6b2-4030-802e-ec80e81c4912",
+   "name": "Sydney Sixers Women vs Melbourne Stars Women, 35th Match, Womens Big Bash League 2026",
+   "venue": "North Sydney Oval, Sydney",
    "teams": [
-    "Western Province",
-    "Titans"
+    "Sydney Sixers Women",
+    "Melbourne Stars Women"
    ],
-   "type": "TEST",
-   "series": "CSA Four-Day Series Division One 2026-27",
-   "start": "2026-11-26T08:00:00+00:00"
-  },
-  {
-   "id": "92ac319e-0b3e-4566-b23e-e8a9b547333b",
-   "name": "Lions vs North West",
-   "venue": "The Wanderers Stadium, Johannesburg",
-   "teams": [
-    "Lions",
-    "North West - Eastvaal Renault Dragons"
-   ],
-   "type": "TEST",
-   "series": "CSA Four-Day Series Division One 2026-27",
-   "start": "2026-11-26T08:00:00+00:00"
+   "type": "T20",
+   "series": "Womens Big Bash League 2026",
+   "start": "2026-11-26T08:10:00+00:00"
   },
   {
    "id": "e16ecbed-6301-4cd8-b968-05f2cbedb252",
