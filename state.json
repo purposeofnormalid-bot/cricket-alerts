@@ -1,25 +1,11 @@
 {
- "v": 3,
+ "v": 4,
  "sent": {},
  "odds": {},
  "open": {},
- "series": {
-  "3ad43395-1335-4e03-8174-c50d35aed600": "Indian Softball Cricket League 2026"
- },
- "matches_ts": "2026-11-25T06:53:30.584371+00:00",
+ "series": {},
+ "matches_ts": "2026-11-25T06:57:20.962138+00:00",
  "matches": [
-  {
-   "id": "a1b375bd-c1c7-42ae-b10a-d67a7b727e87",
-   "name": "South Africa vs Bangladesh, 2nd Test, Bangladesh tour of South Africa, 2026",
-   "venue": "SuperSport Park, Centurion",
-   "teams": [
-    "South Africa",
-    "Bangladesh"
-   ],
-   "type": "",
-   "series": "",
-   "start": "2026-11-23T08:00:00+00:00"
-  },
   {
    "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
    "name": "Tbc vs Tbc, 1st Semi-Final (A1 v B2), ACC Mens Asia Cup Rising Stars 2026",
