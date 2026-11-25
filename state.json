@@ -69,7 +69,7 @@
   }
  ],
  "schedule_date": "2026-11-25",
- "live_ts": "2026-11-25T15:42:58.951380+00:00",
+ "live_ts": "2026-11-25T16:21:51.924188+00:00",
  "live_cache": {
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
@@ -112,7 +112,7 @@
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
-   "matchEnded": false
+   "matchEnded": true
   },
   "20c5f3c7-3f93-46c7-a445-e4bcb2322ab4": {
    "id": "20c5f3c7-3f93-46c7-a445-e4bcb2322ab4",
