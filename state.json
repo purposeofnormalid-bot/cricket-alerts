@@ -1,23 +1,10 @@
 {
- "v": 4,
+ "v": 5,
  "sent": {},
  "odds": {},
  "open": {},
  "series": {},
- "matches_ts": "2026-11-25T06:57:20.962138+00:00",
- "matches": [
-  {
-   "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
-   "name": "Tbc vs Tbc, 1st Semi-Final (A1 v B2), ACC Mens Asia Cup Rising Stars 2026",
-   "venue": "West End Park International Cricket Stadium, Doha",
-   "teams": [
-    "Tbc",
-    "Tbc"
-   ],
-   "type": "ODI",
-   "series": "",
-   "start": "2026-11-26T10:00:00+00:00"
-  }
- ],
+ "matches_ts": "2026-11-25T04:02:38.525111+00:00",
+ "matches": [],
  "schedule_date": "2026-11-25"
 }
