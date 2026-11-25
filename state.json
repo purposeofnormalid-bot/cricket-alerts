@@ -1,5 +1,5 @@
 {
- "v": 9,
+ "v": 10,
  "sent": {
   "e16ecbed-6301-4cd8-b968-05f2cbedb252": [],
   "a1899243-cdaf-4ad5-98db-72477456b3fb": []
@@ -69,13 +69,13 @@
   }
  ],
  "schedule_date": "2026-11-25",
- "live_ts": "2026-11-25T15:28:45.865130+00:00",
+ "live_ts": "2026-11-25T15:37:45.242465+00:00",
  "live_cache": {
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
    "name": "Bihar Rising vs Andhra Warriors, 1st Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Andhra Warriors need 34 runs in 47 balls",
+   "status": "Andhra Warriors need 7 runs in 29 balls",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-25",
    "dateTimeGMT": "2026-11-25T14:00:00",
@@ -101,9 +101,9 @@
      "inning": "Bihar Rising Inning 1"
     },
     {
-     "r": 19,
+     "r": 46,
      "w": 1,
-     "o": 1.1,
+     "o": 4.1,
      "inning": "Andhra Warriors Inning 1"
     }
    ],
