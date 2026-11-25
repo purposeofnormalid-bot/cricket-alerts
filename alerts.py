@@ -67,7 +67,6 @@ def load_state():
     try:
         with open(STATE_FILE, encoding="utf-8") as f:
             s = json.load(f)
-        # আগের ক্যাশ ধরে রাখবে যাতে বাড়তি CricAPI ক্রেডিট খরচ না হয়
         if s.get("v") in (7, 8, 9, STATE_VERSION):
             s["v"] = STATE_VERSION
             return s
@@ -541,12 +540,16 @@ def analyze_market_flow(opening, probs):
     return odds_txt, flow_txt
 
 
-def call_gemini(prompt):
+def is_complete(txt, required_markers):
+    return all(m in txt for m in required_markers)
+
+
+def call_gemini(prompt, required_markers):
     for model in (PRIMARY_MODEL, FALLBACK_MODEL):
         for use_search in (True, False):
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 1200, "temperature": 0.25}
+                "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.25}
             }
             if use_search:
                 payload["tools"] = [{"google_search": {}}]
@@ -560,8 +563,9 @@ def call_gemini(prompt):
                 if r.ok:
                     cand = r.json()["candidates"][0]["content"]["parts"]
                     txt = "".join(p.get("text", "") for p in cand).strip()
-                    if txt:
+                    if txt and is_complete(txt, required_markers):
                         return txt
+                    print(f"Gemini {model} (search={use_search}) incomplete output, retrying...")
                 else:
                     print(f"Gemini {model} (search={use_search}) error:", r.status_code, r.text[:200])
             except Exception as e:
@@ -576,31 +580,33 @@ def generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, base_rule
     toss_impact, home_bias, expected_call = base_rules
 
     if stage_key == "toss":
-        prompt = f"""You are a quantitative cricket analyst. Output ONLY crisp 1-line English key points.
+        prompt = f"""You are a quantitative cricket analyst. Write a sharp, structured PRE-TOSS ANALYTICS report in clean English with clear explanations for every point.
 
 DATA:
 - Match: {vs} ({m.get('type', '')})
 - Venue: {m['venue']}
-- Weather: {wx}
+- Weather & Dew: {wx}
 - Toss Impact: {toss_impact}
-- Expected Call: {expected_call}
+- Optimal Call: {expected_call}
 - Market Odds: {odds_txt}
 - Public Flow: {flow_txt}
 
 STRICT RULES:
-- 100% ENGLISH ONLY. Zero Bengali. Zero paragraphs. Zero square brackets `[...]` in output.
-- Every single bullet/number MUST fit on ONE short line.
-- Use Google Search if available to find real Captain toss % and Venue Bat/Bowl First % for {m['venue']}.
-- Pick ONE team for Expected Toss Winner with a realistic pattern-based split (`52% vs 48%` to `56% vs 44%`) and a 4-6 word reason.
-- Output EXACTLY these 6 lines:
+- 100% ENGLISH ONLY. No square brackets `[...]` in your final output.
+- Include a concise, insightful 1-sentence **Toss Explanation** explaining the pitch, dew, captaincy trend, and why that decision gives the winning edge.
+- Pick ONE team for Expected Toss Winner with a realistic pattern-based split (52% vs 48% to 56% vs 44%).
+- Follow this EXACT output structure:
 
-1. **Toss Impact Rating:** `{toss_impact}`
-2. **Captain & Venue Trend:** `[Captain A XX% vs Captain B YY% | Venue: ZZ% Bowl/Bat First]`
-3. **Pitch & Dew Trigger:** `[Flat/Green/Dry/Dead Track] | {wx}`
-4. **Public & Market Flow:** `{odds_txt} | {flow_txt}`
-5. **Expected Toss Decision:** `{expected_call} ([XX]% Probability — [3-5 word reason])`
+1. **Toss Impact Rating:** {toss_impact}
+2. **Captain & Venue Trend:** Captain A XX% vs Captain B YY% | Venue: ZZ% Bowl/Bat First
+3. **Pitch & Dew Trigger:** Flat/Green/Dry Track | {wx}
+4. **Public & Market Flow:** {odds_txt} | {flow_txt}
+5. **Expected Toss Decision:** {expected_call} (XX% Probability)
+6. **Toss Basis & Explanation:** (1-2 crisp sentences explaining why this toss call & team have the tactical edge here, noting coin flip variance)
 
-> 🎯 **Expected Toss Winner:** `[Winner Name] ([XX]% vs [YY]%)` — *[4-6 word venue/captaincy reason]*"""
+> 🎯 **Expected Toss Winner:** Winner Name (XX% vs YY%) — Key tactical reason"""
+
+        return call_gemini(prompt, ["Toss Impact Rating", "Expected Toss Winner"])
 
     else:
         stage_labels = {
@@ -613,12 +619,12 @@ STRICT RULES:
         stage_title = stage_labels.get(stage_key, stage_key)
         is_break = stage_key == "break"
         inn_line = (
-            "• **1st Innings Target (`Actual`):** `Target [XXX]` | **Chase:** `[XX]%` | **Defend:** `[YY]%`"
+            "• **1st Innings Target:** Actual Target XXX | **Chase:** XX% | **Defend:** YY%"
             if is_break else
-            "• **1st Innings Par (`Line: [XXX].5`):** `[XXX] – [YYY]` | **Over:** `[XX]%` | **Under:** `[YY]%`"
+            "• **1st Innings Par (Line: XXX.5):** XXX – YYY | **Over:** XX% | **Under:** YY%"
         )
 
-        prompt = f"""You are a quantitative cricket trading analyst. Output ONLY crisp 1-line English key points for **{stage_title}**.
+        prompt = f"""You are a quantitative cricket trading analyst. Write a structured, sharp analytical report for **{stage_title}** in clean English with clear explanations for Toss, Match, and Session sections.
 
 DATA:
 - Match: {vs} ({m.get('type', '')})
@@ -626,34 +632,35 @@ DATA:
 - Live Score: {info['score_txt']}
 - Toss: {info['toss']}
 - Playing XI: {info['xi']}
-- Weather: {wx}
+- Weather & Dew: {wx}
 - Home Bias Rule: {home_bias}
 - Market Odds: {odds_txt}
 - Public Flow: {flow_txt}
 
 STRICT RULES:
-- 100% ENGLISH ONLY. Zero Bengali. Zero paragraphs. Zero square brackets `[...]` in output.
-- Every single item MUST be ONE compact line.
+- 100% ENGLISH ONLY. No square brackets `[...]` in your final output.
 - Ensure Over% + Under% = 100%, Chasing Win% + Defending Win% = 100%, and {t1}% + {t2}% = 100%.
+- Include a clear **Match Edge Explanation** AND a clear **Session & Chase Basis** explaining *on what statistical/pitch/dew basis* the session lines, Over/Under %, and Chase/Defend % are projected.
 - Use `CLEAR VALUE EDGE` only if Model Fair Win % differs from Market Implied % by >4.5%; otherwise use `SLIGHT EDGE` or `NO CLEAR EDGE — SKIP`.
-- Output EXACTLY this structure:
+- Follow this EXACT output structure:
 
-━━━ 🪙 **MATCH KEY POINTS** ━━━
-1. **Confirmed Toss:** `{info['toss']}`
-2. **Market Odds (H2H):** `{odds_txt}`
-3. **Public & Sharp Flow:** `{flow_txt}`
-4. **Model vs. Market:** `Model Fair Win: {t1} [XX.X]% vs {t2} [YY.Y]% | Gap: [+/-X.X]%`
-5. **Core Edge Drivers:** `{home_bias} + [XI/Pitch/Live RRR 4-6 words]`
+━━━ 🪙 **TOSS & MATCH KEY POINTS** ━━━
+1. **Toss & Condition Reality:** {info['toss']} | Pitch & dew impact summary
+2. **Market Odds (H2H):** {odds_txt}
+3. **Public & Sharp Flow:** {flow_txt}
+4. **Model vs. Market:** Model Fair Win: {t1} XX.X% vs {t2} YY.Y% | Gap: +/-X.X%
+5. **Match Edge Explanation:** (1-2 crisp sentences explaining why the favored team holds the edge based on XI strength, pitch behavior, home bias, and live score/RRR)
 
-> 🎯 **Expected Match Winner:** `[Team Name] ([XX.X]%)` — `[CLEAR VALUE EDGE / SLIGHT EDGE / NO CLEAR EDGE — SKIP]`
+> 🎯 **Expected Match Winner:** Team Name (XX.X%) — CLEAR VALUE EDGE / SLIGHT EDGE / NO CLEAR EDGE — SKIP
 
 ━━━ ⚡ **SESSION & CHASE PROBABILITIES** ━━━
-• **6-Over PP (`Line: [XX].5`):** `[XX] – [YY]` | **Over:** `[XX]%` | **Under:** `[YY]%`
-• **10-Over Session (`Line: [XX].5`):** `[XX] – [YY]` | **Over:** `[XX]%` | **Under:** `[YY]%`
+• **6-Over PP (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%
+• **10-Over Session (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%
 {inn_line}
-• **Match Outcome Split:** **Chasing Win:** `[XX]%` | **Defending Win:** `[YY]%`"""
+• **Match Outcome Split:** **Chasing Win:** XX% | **Defending Win:** YY%
+• **Session & Chase Basis:** (1-2 crisp sentences explaining the exact basis for these session lines, Over/Under %, and Chase/Defend % — e.g., powerplay pitch pace, boundary rate, dew factor, or required run rate)"""
 
-    return call_gemini(prompt)
+        return call_gemini(prompt, ["Expected Match Winner", "Session & Chase Basis"])
 
 
 def to_html(t):
@@ -663,9 +670,11 @@ def to_html(t):
         is_quote = stripped.startswith(">")
         clean = stripped.lstrip(">").strip() if is_quote else raw_line
         line = esc(clean)
-        line = re.sub(r"`([^`]+)`", r"<code>\1</code>", line)
+        line = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", line)
         line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
         line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", line)
+        # কোনো ভাঙা backtick বা double asterisk থাকলে পরিষ্কার করে দেবে
+        line = line.replace("`", "").replace("**", "")
         if is_quote:
             lines.append(f"<blockquote>{line}</blockquote>")
         else:
@@ -727,7 +736,7 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, info=None, 
         )
 
     if analysis:
-        body = to_html(analysis[:3400])
+        body = to_html(analysis[:3500])
     else:
         body = (
             f"1. <b>Toss:</b> <code>{esc(info['toss'])}</code>\n"
@@ -754,7 +763,7 @@ def main():
 
     if is_manual:
         diag = f"CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Cached Matches: {len(matches)}"
-        tg(f"✅ <b>Final Pro Engine (v10) Active</b>\n📡 <code>{esc(diag)}</code>")
+        tg(f"✅ <b>Final Pro Engine (v10.1 Fixed) Active</b>\n📡 <code>{esc(diag)}</code>")
 
     # Format A: Daily Major Schedule (after 12:01 AM BDT)
     today = NOW.astimezone(BDT).date().isoformat()
