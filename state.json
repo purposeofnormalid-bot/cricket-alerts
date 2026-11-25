@@ -1,6 +1,10 @@
 {
  "v": 7,
- "sent": {},
+ "sent": {
+  "a1899243-cdaf-4ad5-98db-72477456b3fb": [
+   45
+  ]
+ },
  "odds": {},
  "open": {},
  "series_ts": "2026-11-25T07:14:34.646037+00:00",
@@ -38,7 +42,7 @@
    "CSA Provincial One-Day Challenge Division Two 2026-27"
   ]
  ],
- "matches_ts": "2026-11-25T07:14:34.646037+00:00",
+ "matches_ts": "2026-11-25T13:50:22.660908+00:00",
  "matches": [
   {
    "id": "8c276df2-f50f-44d0-8b8f-645b5c538456",
@@ -51,18 +55,6 @@
    "type": "T20",
    "series": "Womens Big Bash League 2026",
    "start": "2026-11-26T04:40:00+00:00"
-  },
-  {
-   "id": "411e1c08-86e0-46d0-a6f6-d086058fd973",
-   "name": "Melbourne Renegades Women vs Brisbane Heat Women, 33rd Match, Womens Big Bash League 2026",
-   "venue": "Junction Oval, Melbourne",
-   "teams": [
-    "Melbourne Renegades Women",
-    "Brisbane Heat Women"
-   ],
-   "type": "T20",
-   "series": "Womens Big Bash League 2026",
-   "start": "2026-11-25T04:40:00+00:00"
   },
   {
    "id": "5ac40469-f6b2-4030-802e-ec80e81c4912",
@@ -91,7 +83,7 @@
   {
    "id": "a1899243-cdaf-4ad5-98db-72477456b3fb",
    "name": "Desert Vipers vs Dubai Capitals, t20",
-   "venue": "",
+   "venue": "Dubai International Cricket Stadium, Dubai",
    "teams": [
     "Desert Vipers",
     "Dubai Capitals"
