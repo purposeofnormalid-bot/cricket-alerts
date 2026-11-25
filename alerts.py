@@ -16,7 +16,7 @@ FALLBACK_MODEL = "gemini-3.5-flash-lite"
 INCLUDE_WOMEN = False  # Women's ম্যাচ চাইলে True করুন
 
 STATE_FILE = "state.json"
-STATE_VERSION = 7
+STATE_VERSION = 8
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
@@ -60,6 +60,7 @@ SERIES_KEYWORDS = [
 YEARS = ("2026", "2027")
 
 esc = html.escape
+API_DIAG = {"hits": "?", "limit": "?", "reason": ""}
 
 
 def load_state():
@@ -122,13 +123,17 @@ def api(ep, **params):
         print(ep, "error:", type(e).__name__)
         return {}
     info = j.get("info", {})
+    if info:
+        API_DIAG["hits"] = info.get("hitsToday", API_DIAG["hits"])
+        API_DIAG["limit"] = info.get("hitsLimit", API_DIAG["limit"])
     print(
         ep, {k: v for k, v in params.items() if k != "apikey"}, "->",
         j.get("status"), "| hits:", info.get("hitsToday"), "/",
         info.get("hitsLimit")
     )
     if j.get("status") != "success":
-        print("CricAPI problem:", j.get("reason", "unknown"))
+        API_DIAG["reason"] = j.get("reason", "unknown")
+        print("CricAPI problem:", API_DIAG["reason"])
     return j
 
 
@@ -273,7 +278,6 @@ def fetch_matches(state):
 
 
 def fetch_live_map(matches):
-    # শুধু কোনো major ম্যাচ শুরুর ১ ঘণ্টা আগে থেকে ৬ ঘণ্টা পরের উইন্ডোতে থাকলে currentMatches কল হবে
     need_live = any(
         -360 <= (parse(m["start"]) - NOW).total_seconds() / 60 <= 65
         for m in matches
@@ -352,7 +356,6 @@ def detect_inplay_stage(m_type, info):
     if not score:
         return None
 
-    # ১ম ইনিংস চলাকালীন বা বিরতিতে
     if len(score) == 1:
         try:
             ov = float(score[0].get("o", 0))
@@ -360,22 +363,21 @@ def detect_inplay_stage(m_type, info):
             ov = 0.0
         if "innings break" in st or "break" in st:
             return "break"
-        if m_type in ("T20", "T20I") and ov >= 19.4:
+        if m_type in ("T20", "T20I") and ov >= 18.5:
             return "break"
-        if m_type in ("ODI",) and ov >= 49.4:
+        if m_type in ("ODI",) and ov >= 48.5:
             return "break"
-        if m_type in ("T20", "T20I", "ODI") and 9.2 <= ov <= 11.5:
+        if m_type in ("T20", "T20I", "ODI") and 9.0 <= ov <= 13.5:
             return "10ov"
-        if m_type in ("T20", "T20I", "ODI") and 5.2 <= ov <= 7.5:
+        if m_type in ("T20", "T20I", "ODI") and 5.0 <= ov <= 8.5:
             return "6ov"
 
-    # ২য় ইনিংস সবেমাত্র শুরু হলে (যদি ইনংস ব্রেক মিস হয়ে থাকে)
     if len(score) >= 2:
         try:
             ov2 = float(score[1].get("o", 0))
         except Exception:
             ov2 = 99.0
-        if ov2 <= 2.3:
+        if ov2 <= 2.5:
             return "break"
 
     return None
@@ -574,7 +576,8 @@ RULES:
             "prematch": "15m Pre-Match (Post-Toss & Playing XI)",
             "6ov": "In-Play: 6-Over Powerplay Pulse",
             "10ov": "In-Play: 10-Over Session Pulse",
-            "break": "In-Play: 1st Innings Break (80-88%+ Golden Chase Window)"
+            "break": "In-Play: 1st Innings Break (80-88%+ Golden Chase Window)",
+            "preview": "Live / Upcoming Match Snapshot (Manual Check)"
         }
         stage_title = stage_labels.get(stage_key, stage_key)
         prompt = f"""You are a quantitative cricket trading & probability analyst. Write the analytical report for **{stage_title}**.
@@ -635,17 +638,89 @@ def label(m):
     return f"{t} • {s}" if s else t
 
 
+def dispatch_card(m, start, stage_key, state, events, live_obj=None, info=None, mark_sent=True):
+    saved = state["odds"].get(m["id"], {})
+    probs = probs_for(m, events or []) or saved
+    if probs:
+        state["odds"][m["id"]] = probs
+        state["open"].setdefault(m["id"], probs)
+    opening = state["open"].get(m["id"], {})
+    odds_txt = "; ".join(
+        f"{t}: Open {opening[t]['o']} ➔ Now {v['o']} "
+        f"(Implied {opening[t]['p']}% ➔ {v['p']}%)"
+        for t, v in probs.items() if t in opening
+    ) or "Odds opening soon / not listed yet"
+
+    if info is None:
+        if stage_key in ("prematch", "preview") or not m.get("venue"):
+            info = match_details(m["id"], live_obj)
+            if info["venue"] and not m.get("venue"):
+                m["venue"] = info["venue"]
+        else:
+            info = {
+                "toss": "Toss: not happened yet (scheduled ~30m pre-match)",
+                "venue": m.get("venue", ""),
+                "status": "Scheduled",
+                "score": [],
+                "score_txt": "Pre-Match",
+                "xi": "Pending toss"
+            }
+
+    wx = weather_info(m["venue"], start)
+    base_rules = research_baseline(m, start, wx)
+    analysis = generate_report(m, start, stage_key, wx, info, odds_txt, base_rules)
+
+    vs = " vs ".join(m["teams"]) or m["name"]
+    if stage_key == "toss":
+        head = (
+            f"🪙 <b>PRE-TOSS & CONDITION ALERT (<code>50–55m Pre-Match</code>)</b>\n"
+            f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
+            f"🏟️ Venue: {esc(m['venue'])} | ⏰ Start: <code>{start.astimezone(BDT):%I:%M %p} BDT</code>\n\n"
+        )
+    else:
+        badge_map = {
+            "prematch": "15m Post-Toss Final",
+            "6ov": "Live 6-Over PP Pulse",
+            "10ov": "Live 10-Over Pulse",
+            "break": "1st Innings Break • Golden Window",
+            "preview": "Manual Live / Match Check"
+        }
+        head = (
+            f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
+            f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{badge_map.get(stage_key, stage_key)}</code>\n\n"
+        )
+
+    if analysis:
+        body = to_html(analysis[:3400])
+    else:
+        body = (
+            f"📊 {esc(odds_txt)}\n"
+            f"🌦 {esc(wx)}\n"
+            f"🪙 {esc(info['toss'])}\n"
+            f"🏏 {esc(info['score_txt'])}"
+        )
+
+    ok = tg(head + body)
+    if ok and mark_sent:
+        state["sent"].setdefault(m["id"], []).append(stage_key)
+    return ok
+
+
 def main():
     state = load_state()
     for k in ("sent", "odds", "open"):
         state.setdefault(k, {})
 
-    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-        tg("✅ Test: Pre-Match & Live Pulse (Research v7) চালু আছে।")
-
+    is_manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
     matches = fetch_matches(state)
     live_map = fetch_live_map(matches)
-    events = None
+    events = fetch_odds()
+
+    if is_manual:
+        diag = f"CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Major Matches: {len(matches)}"
+        if API_DIAG["reason"]:
+            diag += f" | Note: {API_DIAG['reason']}"
+        tg(f"✅ Test: Pre-Match & Live Pulse (Research v8) চালু আছে।\n📡 <code>{esc(diag)}</code>")
 
     # Format A: Daily Major Schedule (after 12:01 AM BDT)
     today = NOW.astimezone(BDT).date().isoformat()
@@ -673,7 +748,8 @@ def main():
         if tg(head + ("\n".join(lines) if lines else "আজ কোনো major ম্যাচ নেই।")):
             state["schedule_date"] = today
 
-    # Format B1 (50-55m Pre-Toss) & Format B2 (15m Post-Toss + In-Play 6ov/10ov/Break)
+    # Scheduled Triggers: Format B1 (50-55m Pre-Toss) & Format B2 (15m Post-Toss + In-Play)
+    cards_sent = 0
     for m in matches:
         start = parse(m["start"])
         mins = (start - NOW).total_seconds() / 60
@@ -694,71 +770,21 @@ def main():
         if not stage_key or stage_key in sent:
             continue
 
-        # Odds আপডেট ও Implied Probability হিসাব
-        saved = state["odds"].get(m["id"], {})
-        if events is None:
-            events = fetch_odds()
-        probs = probs_for(m, events) or saved
-        if probs:
-            state["odds"][m["id"]] = probs
-            state["open"].setdefault(m["id"], probs)
-        opening = state["open"].get(m["id"], {})
-        odds_txt = "; ".join(
-            f"{t}: Open {opening[t]['o']} ➔ Now {v['o']} "
-            f"(Implied {opening[t]['p']}% ➔ {v['p']}%)"
-            for t, v in probs.items() if t in opening
-        ) or "Odds opening soon / not listed yet"
+        if dispatch_card(m, start, stage_key, state, events, live_obj=live_obj, info=info, mark_sent=True):
+            cards_sent += 1
 
-        if info is None:
-            if stage_key == "prematch" or not m.get("venue"):
-                info = match_details(m["id"], live_obj)
-                if info["venue"] and not m.get("venue"):
-                    m["venue"] = info["venue"]
-            else:
-                info = {
-                    "toss": "Toss: not happened yet (scheduled ~30m pre-match)",
-                    "venue": m.get("venue", ""),
-                    "status": "Scheduled",
-                    "score": [],
-                    "score_txt": "Pre-Match",
-                    "xi": "Pending toss"
-                }
-
-        wx = weather_info(m["venue"], start)
-        base_rules = research_baseline(m, start, wx)
-        analysis = generate_report(m, start, stage_key, wx, info, odds_txt, base_rules)
-
-        vs = " vs ".join(m["teams"]) or m["name"]
-        if stage_key == "toss":
-            head = (
-                f"🪙 <b>PRE-TOSS & CONDITION ALERT (<code>50–55m Pre-Match</code>)</b>\n"
-                f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
-                f"🏟️ Venue: {esc(m['venue'])} | ⏰ Start: <code>{start.astimezone(BDT):%I:%M %p} BDT</code>\n\n"
-            )
-        else:
-            badge_map = {
-                "prematch": "15m Post-Toss Final",
-                "6ov": "Live 6-Over PP Pulse",
-                "10ov": "Live 10-Over Pulse",
-                "break": "1st Innings Break • Golden Window"
-            }
-            head = (
-                f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
-                f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{badge_map[stage_key]}</code>\n\n"
-            )
-
-        if analysis:
-            body = to_html(analysis[:3400])
-        else:
-            body = (
-                f"📊 {esc(odds_txt)}\n"
-                f"🌦 {esc(wx)}\n"
-                f"🪙 {esc(info['toss'])}\n"
-                f"🏏 {esc(info['score_txt'])}"
-            )
-
-        if tg(head + body):
-            sent.append(stage_key)
+    # ম্যানুয়ালি Run workflow চাপলে যদি কোনো শিডিউল উইন্ডো না মেলে, তবুও ১টি লাইভ/পরবর্তী ম্যাচের প্রিভিউ কার্ড পাঠাবে
+    if is_manual and cards_sent == 0 and matches:
+        target = next((m for m in matches if m["id"] in live_map), matches[0])
+        dispatch_card(
+            target,
+            parse(target["start"]),
+            "preview",
+            state,
+            events,
+            live_obj=live_map.get(target["id"]),
+            mark_sent=False
+        )
 
     keep = {m["id"] for m in matches}
     for k in ("sent", "odds", "open"):
