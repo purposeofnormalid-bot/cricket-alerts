@@ -9,10 +9,10 @@ ODDS = os.environ["ODDS_API_KEY"]
 GEM = os.environ["GEMINI_API_KEY"]
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
-INCLUDE_WOMEN = False   # Women's ম্যাচ চাইলে True করুন
+INCLUDE_WOMEN = True   # Women's ম্যাচ চাইলে True করুন
 
 STATE_FILE = "state.json"
-STATE_VERSION = 6
+STATE_VERSION = 7
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
@@ -40,7 +40,7 @@ FRANCHISE = [
     "paarl royals", "joburg super kings", "durban", "pretoria capitals",
     "mi cape town", "sunrisers eastern cape"]
 BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development",
-              "academy", "softball", "rising stars")
+              "academy", "softball", "rising stars", ""csa")
 WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
 SERIES_KEYWORDS = ["ILT20", "Indian Premier League", "Big Bash",
                    "Bangladesh Premier", "Pakistan Super League", "SA20",
