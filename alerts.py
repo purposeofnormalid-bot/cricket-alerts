@@ -1,4 +1,7 @@
-import os, json, re, html
+import os
+import json
+import re
+import html
 from datetime import datetime, timedelta, timezone
 import requests
 
@@ -7,23 +10,27 @@ TG_CHAT = os.environ["TELEGRAM_CHAT_ID"]
 CRIC = os.environ["CRICAPI_KEY"]
 ODDS = os.environ["ODDS_API_KEY"]
 GEM = os.environ["GEMINI_API_KEY"]
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+PRIMARY_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
-INCLUDE_WOMEN = True   # Women's ম্যাচ চাইলে True করুন
+INCLUDE_WOMEN = False  # Women's ম্যাচ চাইলে True করুন
 
 STATE_FILE = "state.json"
 STATE_VERSION = 7
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
-FULL = {"india", "australia", "england", "pakistan", "south africa",
-        "new zealand", "sri lanka", "bangladesh", "west indies",
-        "afghanistan", "zimbabwe", "ireland"}
+FULL = {
+    "india", "australia", "england", "pakistan", "south africa",
+    "new zealand", "sri lanka", "bangladesh", "west indies",
+    "afghanistan", "zimbabwe", "ireland"
+}
 LEAGUE_RE = re.compile(
     r"\b(ipl|indian premier league|big bash|bbl|wbbl|bpl|bangladesh premier|"
     r"psl|pakistan super league|sa20|ilt20|international league t20|cpl|"
     r"caribbean premier|the hundred|major league cricket|mlc|wpl|icc|acc|"
-    r"asia cup|world cup|champions trophy)\b")
+    r"asia cup|world cup|champions trophy)\b"
+)
 FRANCHISE = [
     "super kings", "mumbai indians", "royal challengers", "knight riders",
     "sunrisers", "super giants", "punjab kings", "gujarat titans",
@@ -38,13 +45,18 @@ FRANCHISE = [
     "desert vipers", "gulf giants", "mi emirates", "sharjah warriors",
     "dubai capitals", "abu dhabi knight riders",
     "paarl royals", "joburg super kings", "durban", "pretoria capitals",
-    "mi cape town", "sunrisers eastern cape"]
-BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development",
-              "academy", "softball", "rising stars",)
+    "mi cape town", "sunrisers eastern cape"
+]
+BAD_ALWAYS = (
+    "u19", "under-19", "under 19", "emerging", "development",
+    "academy", "softball", "rising stars"
+)
 WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
-SERIES_KEYWORDS = ["ILT20", "Indian Premier League", "Big Bash",
-                   "Bangladesh Premier", "Pakistan Super League", "SA20",
-                   "Caribbean Premier", "The Hundred", "Major League Cricket"]
+SERIES_KEYWORDS = [
+    "ILT20", "International League T20", "Indian Premier League",
+    "Big Bash", "Bangladesh Premier", "Pakistan Super League",
+    "SA20", "Caribbean Premier", "The Hundred", "Major League Cricket"
+]
 YEARS = ("2026", "2027")
 
 esc = html.escape
@@ -73,7 +85,8 @@ def tg(text, use_html=True):
             data["parse_mode"] = "HTML"
         r = requests.post(
             f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-            json=data, timeout=20)
+            json=data, timeout=20
+        )
         print("telegram status:", r.status_code)
         if not r.ok and use_html:
             plain = re.sub(r"<[^>]+>", "", html.unescape(text))
@@ -100,16 +113,20 @@ def parse_dt(s):
 
 def api(ep, **params):
     try:
-        j = requests.get(f"https://api.cricapi.com/v1/{ep}",
-                         params={"apikey": CRIC, **params},
-                         timeout=25).json()
+        j = requests.get(
+            f"https://api.cricapi.com/v1/{ep}",
+            params={"apikey": CRIC, **params},
+            timeout=25
+        ).json()
     except Exception as e:
         print(ep, "error:", type(e).__name__)
         return {}
     info = j.get("info", {})
-    print(ep, {k: v for k, v in params.items() if k != "apikey"}, "->",
-          j.get("status"), "| hits:", info.get("hitsToday"), "/",
-          info.get("hitsLimit"))
+    print(
+        ep, {k: v for k, v in params.items() if k != "apikey"}, "->",
+        j.get("status"), "| hits:", info.get("hitsToday"), "/",
+        info.get("hitsLimit")
+    )
     if j.get("status") != "success":
         print("CricAPI problem:", j.get("reason", "unknown"))
     return j
@@ -130,8 +147,9 @@ def is_bad(m):
         return True
     if any(t.endswith(" a") for t in teams):
         return True
-    if not INCLUDE_WOMEN and any(t.endswith("-w") or t.endswith(" women")
-                                 for t in teams):
+    if not INCLUDE_WOMEN and any(
+        t.endswith("-w") or t.endswith(" women") for t in teams
+    ):
         return True
     return False
 
@@ -153,20 +171,21 @@ def clean_team(t):
 def cricscore_matches():
     j = api("cricScore")
     data = j.get("data") or []
-    print("cricScore rows:", len(data))
-    sample = sorted({str(x.get("series")) for x in data})[:12]
-    print("cricScore series sample:", sample)
     out = []
     for x in data:
         if x.get("ms") == "result" or not x.get("dateTimeGMT"):
             continue
         teams = [clean_team(x.get("t1")), clean_team(x.get("t2"))]
-        out.append({"id": x["id"],
-                    "name": f"{teams[0]} vs {teams[1]}, {x.get('matchType', '')}",
-                    "venue": "", "teams": teams,
-                    "type": (x.get("matchType") or "").upper(),
-                    "series": x.get("series") or "",
-                    "dt": x["dateTimeGMT"], "trusted": False})
+        out.append({
+            "id": x["id"],
+            "name": f"{teams[0]} vs {teams[1]}, {x.get('matchType', '')}",
+            "venue": "",
+            "teams": teams,
+            "type": (x.get("matchType") or "").upper(),
+            "series": x.get("series") or "",
+            "dt": x["dateTimeGMT"],
+            "trusted": False
+        })
     return out
 
 
@@ -186,7 +205,6 @@ def active_series(state):
                 continue
             found[s["id"]] = name
     ids = [[i, n] for i, n in found.items()][:8]
-    print("series found:", [n for _, n in ids])
     state["series_ts"] = NOW.isoformat()
     state["series_ids"] = ids
     return ids
@@ -199,100 +217,247 @@ def series_matches(state):
         for m in (j.get("data") or {}).get("matchList") or []:
             if m.get("matchEnded") or not m.get("dateTimeGMT"):
                 continue
-            teams = m.get("teams") or [t.get("name", "")
-                                       for t in m.get("teamInfo", [])]
-            out.append({"id": m["id"], "name": m.get("name", ""),
-                        "venue": m.get("venue", ""), "teams": teams,
-                        "type": (m.get("matchType") or "").upper(),
-                        "series": sname, "dt": m["dateTimeGMT"],
-                        "trusted": True})
+            teams = m.get("teams") or [
+                t.get("name", "") for t in m.get("teamInfo", [])
+            ]
+            out.append({
+                "id": m["id"],
+                "name": m.get("name", ""),
+                "venue": m.get("venue", ""),
+                "teams": teams,
+                "type": (m.get("matchType") or "").upper(),
+                "series": sname,
+                "dt": m["dateTimeGMT"],
+                "trusted": True
+            })
     return out
 
 
 def fetch_matches(state):
     ts = state.get("matches_ts")
-    if ts and NOW - parse(ts) < timedelta(hours=6):
+    if ts and NOW - parse(ts) < timedelta(hours=4):
         return state.get("matches", [])
 
     cands = series_matches(state) + cricscore_matches()
-    out, seen, keys, shown = [], set(), set(), 0
+    out, seen, keys = [], set(), set()
     for m in cands:
         if is_bad(m):
             continue
         start = parse_dt(m["dt"])
         if (not start or start - NOW > timedelta(hours=36)
-                or NOW - start > timedelta(hours=8)):
+                or NOW - start > timedelta(hours=9)):
             continue
-        key = (tuple(sorted(t.lower() for t in m["teams"])),
-               start.strftime("%Y-%m-%d"))
+        key = (
+            tuple(sorted(t.lower() for t in m["teams"])),
+            start.strftime("%Y-%m-%d")
+        )
         if m["id"] in seen or key in keys:
             continue
         if not (m["trusted"] or is_major(m)):
-            if shown < 15:
-                print("not major:", m["name"], "|", m.get("series", ""))
-                shown += 1
             continue
         seen.add(m["id"])
         keys.add(key)
-        print("major:", m["name"], "|",
-              start.astimezone(BDT).strftime("%d %b %I:%M %p"), "BDT")
-        out.append({"id": m["id"], "name": m["name"], "venue": m["venue"],
-                    "teams": m["teams"], "type": m["type"],
-                    "series": m["series"], "start": start.isoformat()})
+        out.append({
+            "id": m["id"],
+            "name": m["name"],
+            "venue": m["venue"],
+            "teams": m["teams"],
+            "type": m["type"],
+            "series": m["series"],
+            "start": start.isoformat()
+        })
     print(f"candidates: {len(cands)}, major found: {len(out)}")
-    # পাওয়া গেলে ৬ ঘণ্টা cache; না পেলে ৪ ঘণ্টা পর আবার চেষ্টা
     state["matches_ts"] = (NOW if out else NOW - timedelta(hours=2)).isoformat()
     state["matches"] = out
     return out
 
 
-def match_info(mid):
+def fetch_live_map(matches):
+    # শুধু কোনো major ম্যাচ শুরুর ১ ঘণ্টা আগে থেকে ৬ ঘণ্টা পরের উইন্ডোতে থাকলে currentMatches কল হবে
+    need_live = any(
+        -360 <= (parse(m["start"]) - NOW).total_seconds() / 60 <= 65
+        for m in matches
+    )
+    if not need_live:
+        return {}
+    j = api("currentMatches", offset=0)
+    live_map = {}
+    for x in j.get("data") or []:
+        live_map[x["id"]] = x
+    return live_map
+
+
+def match_details(mid, live_obj=None):
+    toss = "Toss: not happened yet"
+    venue = ""
+    status = (live_obj or {}).get("status", "")
+    score = (live_obj or {}).get("score") or []
+    started = bool((live_obj or {}).get("matchStarted"))
+    ended = bool((live_obj or {}).get("matchEnded"))
+    xi_txt = "Not confirmed yet"
+
     try:
-        j = requests.get("https://api.cricapi.com/v1/match_info",
-                         params={"apikey": CRIC, "id": mid}, timeout=25).json()
-        d = j.get("data", {})
+        j = api("match_info", id=mid)
+        d = j.get("data") or {}
+        venue = d.get("venue") or venue
+        status = d.get("status") or status
+        score = d.get("score") or score
+        started = bool(d.get("matchStarted", started))
+        ended = bool(d.get("matchEnded", ended))
         if d.get("tossWinner"):
-            toss = (f"Toss: {d['tossWinner']} won the toss and chose to "
-                    f"{d.get('tossChoice', '?')}")
-        else:
-            toss = "Toss: not happened yet / not in data"
-        return toss, d.get("venue", "")
+            toss = (
+                f"Confirmed Toss: {d['tossWinner']} won the toss and "
+                f"elected to {d.get('tossChoice', '?')}"
+            )
+        players = d.get("players") or []
+        if players:
+            xi_parts = []
+            for team_blk in players[:2]:
+                tname = team_blk.get("teamName", "")
+                plist = [
+                    p.get("name", "") for p in (team_blk.get("players") or [])[:11]
+                ]
+                if plist:
+                    xi_parts.append(f"{tname}: {', '.join(plist)}")
+            if xi_parts:
+                xi_txt = " | ".join(xi_parts)
     except Exception:
-        return "Toss: data unavailable", ""
+        pass
+
+    score_lines = []
+    for s in score:
+        score_lines.append(
+            f"{s.get('inning', 'Inning')}: {s.get('r', 0)}/{s.get('w', 0)} "
+            f"({s.get('o', 0)} ov)"
+        )
+    score_txt = " | ".join(score_lines) if score_lines else "Match not started"
+
+    return {
+        "toss": toss,
+        "venue": venue,
+        "status": status,
+        "score": score,
+        "score_txt": score_txt,
+        "started": started,
+        "ended": ended,
+        "xi": xi_txt
+    }
 
 
-def weather(venue, start):
+def detect_inplay_stage(m_type, info):
+    if info["ended"] or not info["started"]:
+        return None
+    score = info["score"]
+    st = (info["status"] or "").lower()
+    if not score:
+        return None
+
+    # ১ম ইনিংস চলাকালীন বা বিরতিতে
+    if len(score) == 1:
+        try:
+            ov = float(score[0].get("o", 0))
+        except Exception:
+            ov = 0.0
+        if "innings break" in st or "break" in st:
+            return "break"
+        if m_type in ("T20", "T20I") and ov >= 19.4:
+            return "break"
+        if m_type in ("ODI",) and ov >= 49.4:
+            return "break"
+        if m_type in ("T20", "T20I", "ODI") and 9.2 <= ov <= 11.5:
+            return "10ov"
+        if m_type in ("T20", "T20I", "ODI") and 5.2 <= ov <= 7.5:
+            return "6ov"
+
+    # ২য় ইনিংস সবেমাত্র শুরু হলে (যদি ইনংস ব্রেক মিস হয়ে থাকে)
+    if len(score) >= 2:
+        try:
+            ov2 = float(score[1].get("o", 0))
+        except Exception:
+            ov2 = 99.0
+        if ov2 <= 2.3:
+            return "break"
+
+    return None
+
+
+def weather_info(venue, start):
     try:
         parts = [p.strip() for p in (venue or "").split(",")]
         city = parts[-2] if len(parts) >= 3 else parts[-1]
-        g = requests.get("https://geocoding-api.open-meteo.com/v1/search",
-                         params={"name": city, "count": 1}, timeout=15).json()
+        g = requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1}, timeout=15
+        ).json()
         p = g["results"][0]
-        w = requests.get("https://api.open-meteo.com/v1/forecast", params={
-            "latitude": p["latitude"], "longitude": p["longitude"],
-            "hourly": "precipitation_probability,relative_humidity_2m,dew_point_2m",
-            "forecast_days": 3, "timezone": "UTC"}, timeout=15).json()["hourly"]
+        w = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": p["latitude"],
+                "longitude": p["longitude"],
+                "hourly": "precipitation_probability,cloud_cover,relative_humidity_2m,dew_point_2m",
+                "forecast_days": 3,
+                "timezone": "UTC"
+            },
+            timeout=15
+        ).json()["hourly"]
         i = w["time"].index(start.strftime("%Y-%m-%dT%H:00"))
-        return (f"Rain {w['precipitation_probability'][i]}%, "
-                f"Humidity {w['relative_humidity_2m'][i]}%, "
-                f"Dew point {w['dew_point_2m'][i]}C")
+        rain = w["precipitation_probability"][i]
+        cloud = w["cloud_cover"][i]
+        hum = w["relative_humidity_2m"][i]
+        dew = w["dew_point_2m"][i]
+        is_night = start.astimezone(BDT).hour >= 17
+        dew_risk = "HIGH DEW (Chasing Edge)" if (is_night and (hum >= 68 or dew >= 17)) else "Low/Moderate Dew"
+        return (
+            f"Rain {rain}%, Cloud {cloud}%, Humidity {hum}%, "
+            f"Dew {dew}C ({dew_risk})"
+        )
     except Exception:
         return "Weather: not available"
+
+
+def research_baseline(m, start, wx):
+    fmt = (m.get("type") or "").upper()
+    is_night = start.astimezone(BDT).hour >= 17
+    high_dew = "HIGH DEW" in wx
+
+    if "TEST" in fmt:
+        toss_impact = "HIGH IMPACT (+4.9% historical; 47% vs 34% in last 5 yrs)"
+        home_bias = "Strong Home Baseline (~59% win rate; log-odds +0.50)"
+    elif "ODI" in fmt:
+        toss_impact = "CRITICAL DEW EDGE (Day-Night)" if high_dew else "LOW IMPACT (+1.8% to +2.8% overall)"
+        home_bias = "Strong Home Baseline (~59% win rate; log-odds +0.50)"
+    else:
+        toss_impact = "CRITICAL CHASING EDGE (Dew Factor)" if high_dew else "LOW-MODERATE (~2.8% baseline)"
+        home_bias = "Neutral Home Baseline (~50% in T20; zero home bias)"
+
+    expected_call = "Bowl First (Dew / Swing advantage)" if (high_dew or is_night) else "Pitch-dependent (Bat First if dry)"
+    return toss_impact, home_bias, expected_call
 
 
 def fetch_odds():
     events = []
     try:
-        sports = requests.get("https://api.the-odds-api.com/v4/sports/",
-                              params={"apiKey": ODDS}, timeout=20).json()
-        keys = [s["key"] for s in sports
-                if s["key"].startswith("cricket") and s.get("active")]
+        sports = requests.get(
+            "https://api.the-odds-api.com/v4/sports/",
+            params={"apiKey": ODDS}, timeout=20
+        ).json()
+        keys = [
+            s["key"] for s in sports
+            if s["key"].startswith("cricket") and s.get("active")
+        ]
         print("odds sport keys:", keys)
         for k in keys:
             r = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/{k}/odds/",
-                params={"apiKey": ODDS, "regions": "uk", "markets": "h2h",
-                        "oddsFormat": "decimal"}, timeout=20)
+                params={
+                    "apiKey": ODDS,
+                    "regions": "uk,au,eu",
+                    "markets": "h2h",
+                    "oddsFormat": "decimal"
+                },
+                timeout=20
+            )
             if r.ok:
                 events += r.json()
     except Exception as e:
@@ -300,18 +465,33 @@ def fetch_odds():
     return events
 
 
+def team_match(t1, t2):
+    a, b = t1.lower().strip(), t2.lower().strip()
+    if a in b or b in a:
+        return True
+    wa = set(a.split()) - {"cricket", "club", "team"}
+    wb = set(b.split()) - {"cricket", "club", "team"}
+    return bool(wa and wb and (wa & wb))
+
+
 def probs_for(match, events):
-    teams = [t.lower() for t in match["teams"]]
+    teams = match["teams"]
+    if len(teams) < 2:
+        return {}
     for ev in events:
-        a, b = ev["home_team"].lower(), ev["away_team"].lower()
-        if teams and all(any(t in x or x in t for x in (a, b)) for t in teams):
+        ha, aw = ev.get("home_team", ""), ev.get("away_team", "")
+        if (team_match(teams[0], ha) and team_match(teams[1], aw)) or (
+            team_match(teams[0], aw) and team_match(teams[1], ha)
+        ):
             acc_p, acc_o, cnt = {}, {}, {}
             for bm in ev.get("bookmakers", []):
                 for mk in bm.get("markets", []):
                     if mk["key"] != "h2h":
                         continue
-                    inv = {o["name"]: 1 / o["price"]
-                           for o in mk["outcomes"] if o.get("price")}
+                    inv = {
+                        o["name"]: 1 / o["price"]
+                        for o in mk["outcomes"] if o.get("price")
+                    }
                     s = sum(inv.values())
                     if not s:
                         continue
@@ -322,78 +502,132 @@ def probs_for(match, events):
                             acc_o[n] = acc_o.get(n, 0) + o["price"]
                             cnt[n] = cnt.get(n, 0) + 1
             if cnt:
-                return {n: {"o": round(acc_o[n] / cnt[n], 2),
-                            "p": round(acc_p[n] / cnt[n] * 100, 1)}
-                        for n in cnt}
+                return {
+                    n: {
+                        "o": round(acc_o[n] / cnt[n], 2),
+                        "p": round(acc_p[n] / cnt[n] * 100, 1)
+                    }
+                    for n in cnt
+                }
     return {}
 
 
-def gemini(m, start, stage, wx, toss, odds_txt):
-    vs = " vs ".join(m["teams"]) or m["name"]
-    prompt = f"""You are a pre-match cricket TRADING and probability analyst. Write the report for the match below.
+def call_gemini(prompt):
+    for model in (PRIMARY_MODEL, FALLBACK_MODEL):
+        for use_search in (True, False):
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": 2200, "temperature": 0.3}
+            }
+            if use_search:
+                payload["tools"] = [{"google_search": {}}]
+            try:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                    headers={"x-goog-api-key": GEM},
+                    json=payload,
+                    timeout=90
+                )
+                if r.ok:
+                    cand = r.json()["candidates"][0]["content"]["parts"]
+                    txt = "".join(p.get("text", "") for p in cand).strip()
+                    if txt:
+                        return txt
+                else:
+                    print(f"Gemini {model} (search={use_search}) error:", r.status_code, r.text[:200])
+            except Exception as e:
+                print(f"Gemini {model} exception:", type(e).__name__)
+    return None
 
-DATA (the only source of numbers you may use):
+
+def generate_report(m, start, stage_key, wx, info, odds_txt, base_rules):
+    vs = " vs ".join(m["teams"]) or m["name"]
+    toss_impact, home_bias, expected_call = base_rules
+
+    if stage_key == "toss":
+        prompt = f"""You are a quantitative cricket analyst. Write a STANDALONE PRE-TOSS & CONDITION ALERT (50-55 minutes before match start).
+
+VERIFIED DATA:
 - Match: {vs} ({m.get('type', '')}, {m.get('series', '')})
 - Venue: {m['venue']}
-- Start: {start.astimezone(BDT):%d %b %I:%M %p} BDT ({stage} minutes before start)
-- Weather: {wx}
-- {toss}
-- Odds (h2h, average of bookmakers): {odds_txt}
+- Start: {start.astimezone(BDT):%d %b %I:%M %p} BDT
+- Weather & Dew: {wx}
+- Statistical Toss Baseline: {toss_impact}
+- Expected Optimal Toss Call: {expected_call}
+- Early H2H Market Odds: {odds_txt}
 
 RULES:
-- Never invent odds, player names, captains, or stats. If something is not in DATA and you are not confident, write N/A.
-- H2H, venue toss/bat-bowl % and pitch notes may come from your general knowledge only if confident; mark them (AI estimate).
-- No toss market is in DATA: say toss market not available (standard ~1.90 each).
-- Write reasons in short, simple Bengali; keep technical terms in English.
-- Plain text. Bold only with **double asterisks** for headings. Max 2800 characters total. One short line per numbered point.
-- Output EXACTLY this structure, naming both teams:
+- NEVER guess who will win the coin toss (coin flip is 50/50 random) and NEVER invent fake "Bookie Plus / Punter Plus" numbers.
+- Use Google Search if available to check the real pitch report (Flat / Green / Dry / Dead), venue last 5 bat-first vs chase record, and any injury news for {vs}.
+- Write explanations in concise, clear **Bengali** (keep cricket/statistical terms in English).
+- Use **double asterisks** for bold labels. Max 1600 characters. Output ONLY this exact format:
 
-━━━ 🪙 **TOSS ANALYSIS (PRE-TOSS)** ━━━
-1. **Toss Market & Odds:** ...
-2. **Toss Sentiment & Trigger:** ...
-3. **Trader & Sharp Toss Lean:** ...
-4. **Captaincy & Venue Toss Stats:** ...
-5. **Weather, Dew & Team News:** ...
-• **Punter Plus On -** [Team]
-• **Bookie Plus On -** [Team]
-• **GO WITH [BOOKIE or PUNTER]** — (reason)
-> 🎯 **AI Toss Verdict:** [predicted toss winner + bat/bowl call, or ⚠️ Skip]
+• **Toss Impact Rating:** {toss_impact}
+• **Expected Toss Decision:** [Bat First or Bowl First] — (সংক্ষিপ্ত বাংলা কারণ: ভেন্যু ট্রেন্ড ও শিশির/মেঘ)
+• **Pitch & Conditions:** [Flat/Green/Dry/Dead] | {wx}
+• **Early Market Odds (H2H):** {odds_txt}
+• **Team News & Venue Trend:** (ভেন্যুর শেষ ৫ ম্যাচের ব্যাট/চেজ রেকর্ড ও ইনজুরি আপডেট বাংলায়)
+> 🎯 **Pre-Toss Takeaway:** [টস জিতলে কোন সিদ্ধান্তটি সেরা এবং মার্কেটে কী নজরে রাখতে হবে — বাংলায়]"""
 
-━━━ 📈 **MATCH ANALYSIS (PRE-MATCH)** ━━━
-1. **Match Market & Odds Shift:** both teams opening ➔ current and % shift
-2. **Graph Direction & Catalyst:** ...
-3. **Trader Movement & Sharp News:** ...
-4. **H2H & Venue Edge:** ...
-5. **Team News & Playing XI:** ...
-• **Punter Plus On -** [Team]
-• **Bookie Plus On -** [Team]
-• **GO WITH [BOOKIE or PUNTER]** — (reason)
-> 🎯 **AI Match Verdict:** [Team — clear edge, or ⚠️ NO CLEAR EDGE — SKIP]
+    else:
+        stage_labels = {
+            "prematch": "15m Pre-Match (Post-Toss & Playing XI)",
+            "6ov": "In-Play: 6-Over Powerplay Pulse",
+            "10ov": "In-Play: 10-Over Session Pulse",
+            "break": "In-Play: 1st Innings Break (80-88%+ Golden Chase Window)"
+        }
+        stage_title = stage_labels.get(stage_key, stage_key)
+        prompt = f"""You are a quantitative cricket trading & probability analyst. Write the analytical report for **{stage_title}**.
 
-━━━ ⚡ **SESSION BIAS (PRE-MATCH)** ━━━
-• **6-Over PP:** [range] | **1st Inn Par:** [range] | **Bias:** [Over / Under / Neutral] — reason
-"""
-    try:
-        r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
-            headers={"x-goog-api-key": GEM},
-            json={"contents": [{"parts": [{"text": prompt}]}],
-                  "generationConfig": {"maxOutputTokens": 2500,
-                                       "temperature": 0.4}},
-            timeout=90)
-        if not r.ok:
-            print("Gemini error:", r.status_code, r.text[:300])
-            return None
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception as e:
-        print("Gemini exception:", type(e).__name__)
-        return None
+VERIFIED DATA:
+- Match: {vs} ({m.get('type', '')}, {m.get('series', '')})
+- Venue: {m['venue']}
+- Stage: {stage_title}
+- Live Status & Score: {info['status']} | {info['score_txt']}
+- Toss Info: {info['toss']}
+- Playing XI: {info['xi']}
+- Weather & Dew: {wx}
+- Format Home Bias Rule: {home_bias}
+- H2H Market Odds & Implied Probabilities: {odds_txt}
+
+RULES:
+- NEVER invent fake "Bookie Plus / Punter Plus" stats.
+- Compare our research-based **Model Fair Win %** (combining Format Home Bias + Playing XI strength + Pitch/Dew + Actual Toss/Live Score/RRR) against the **Market Implied %** from H2H odds.
+- For In-Play stages (especially 1st Innings Break), factor in actual runs, wickets in hand, Required Run Rate (RRR), true pitch behavior seen so far, and evening dew.
+- Only flag a **VALUE EDGE** if Model Fair Win % diverges clearly (>4-5%) from Market Implied %; otherwise write `⚠️ NO CLEAR EDGE — SKIP`.
+- Write explanations in concise, clear **Bengali** (keep technical terms in English).
+- Use **double asterisks** for bold labels. Max 2400 characters. Output ONLY this exact format:
+
+━━━ 🪙 **TOSS & LIVE SITUATION** ━━━
+• **Toss & Pitch Reality:** {info['toss']} | পিচ ও কন্ডিশন বিশ্লেষণ (বাংলায়)
+• **Live Score / Status:** {info['score_txt']}
+
+━━━ 📈 **MODEL vs. MARKET PROBABILITY** ━━━
+• **Market Odds (H2H):** {odds_txt}
+• **Model Fair Win %:** [Team A: XX%] vs [Team B: YY%] | **Divergence Gap:** [+/-X.X%]
+• **Key Drivers:** [Home Bias + XI Strength + Pitch/Dew/RRR — বাংলায় মূল কারণ]
+> 🎯 **AI Verdict:** [Team Name — Clear Value Edge / ⚠️ NO CLEAR EDGE — SKIP]
+
+━━━ ⚡ **SESSION & INNINGS PROJECTION** ━━━
+• **6-Ov PP / Current Phase:** [Range or Actual] | **1st Inn Par / Target:** [Range or Target]
+• **Session / Chase Bias:** [Over / Under / Chase / Defend] — (সংক্ষিপ্ত বাংলা কারণ)"""
+
+    return call_gemini(prompt)
 
 
 def to_html(t):
-    t = esc(t)
-    t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
-    return t.replace("`", "")
+    lines = []
+    for raw_line in t.splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith(">"):
+            inner = esc(stripped.lstrip(">").strip())
+            inner = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", inner)
+            lines.append(f"<blockquote>{inner}</blockquote>")
+        else:
+            line = esc(raw_line)
+            line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+            lines.append(line.replace("`", ""))
+    return "\n".join(lines)
 
 
 def label(m):
@@ -407,82 +641,124 @@ def main():
         state.setdefault(k, {})
 
     if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-        tg("✅ Test: Cricket Alerts bot চালু আছে।")
+        tg("✅ Test: Pre-Match & Live Pulse (Research v7) চালু আছে।")
 
     matches = fetch_matches(state)
+    live_map = fetch_live_map(matches)
+    events = None
 
-    # Format A: daily digest (first run after 12:01 AM BDT)
+    # Format A: Daily Major Schedule (after 12:01 AM BDT)
     today = NOW.astimezone(BDT).date().isoformat()
     if state.get("schedule_date") != today:
         todays = sorted(
-            [m for m in matches
-             if parse(m["start"]).astimezone(BDT).date().isoformat() == today],
-            key=lambda m: m["start"])
+            [
+                m for m in matches
+                if parse(m["start"]).astimezone(BDT).date().isoformat() == today
+            ],
+            key=lambda m: m["start"]
+        )
         d = NOW.astimezone(BDT).strftime("%d %b %Y")
-        head = (f"📅 <b>TODAY'S MAJOR CRICKET SCHEDULE ({d})</b> | "
-                f"📊 <b>Total Major Matches:</b> <code>{len(todays)}</code>\n\n")
+        head = (
+            f"📅 <b>TODAY'S MAJOR CRICKET SCHEDULE (<code>{d}</code>)</b> | "
+            f"📊 <b>Major Matches:</b> <code>{len(todays)}</code>\n\n"
+        )
         lines = []
         for i, m in enumerate(todays, 1):
             t = parse(m["start"]).astimezone(BDT).strftime("%I:%M %p")
             vs = " vs ".join(m["teams"]) or m["name"]
-            lines.append(f"{i}. 🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b> | "
-                         f"⏰ <code>{t} BDT</code> | 🏟️ {esc(m['venue'])}")
+            lines.append(
+                f"{i}. 🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b> | "
+                f"⏰ <code>{t} BDT</code> | 🏟️ {esc(m['venue'])}"
+            )
         if tg(head + ("\n".join(lines) if lines else "আজ কোনো major ম্যাচ নেই।")):
             state["schedule_date"] = today
 
-    # Format B: pre-match reports
-    events = None
+    # Format B1 (50-55m Pre-Toss) & Format B2 (15m Post-Toss + In-Play 6ov/10ov/Break)
     for m in matches:
         start = parse(m["start"])
         mins = (start - NOW).total_seconds() / 60
-        if -10 < mins <= 5:
-            stage = 5
-        elif 5 < mins <= 20:
-            stage = 20
-        elif 20 < mins <= 45:
-            stage = 45
-        else:
-            continue
         sent = state["sent"].setdefault(m["id"], [])
-        if stage in sent:
+        live_obj = live_map.get(m["id"])
+
+        stage_key = None
+        info = None
+
+        if 46 < mins <= 62:
+            stage_key = "toss"
+        elif 4 < mins <= 25:
+            stage_key = "prematch"
+        elif mins <= 4 and live_obj:
+            info = match_details(m["id"], live_obj)
+            stage_key = detect_inplay_stage(m.get("type", ""), info)
+
+        if not stage_key or stage_key in sent:
             continue
 
+        # Odds আপডেট ও Implied Probability হিসাব
         saved = state["odds"].get(m["id"], {})
-        probs = saved
-        if stage in (45, 5) or not saved:
-            if events is None:
-                events = fetch_odds()
-            probs = probs_for(m, events) or saved
+        if events is None:
+            events = fetch_odds()
+        probs = probs_for(m, events) or saved
         if probs:
             state["odds"][m["id"]] = probs
             state["open"].setdefault(m["id"], probs)
         opening = state["open"].get(m["id"], {})
         odds_txt = "; ".join(
-            f"{t}: opening {opening[t]['o']} -> current {v['o']} "
-            f"(implied {opening[t]['p']}% -> {v['p']}%)"
-            for t, v in probs.items() if t in opening) or "not available"
+            f"{t}: Open {opening[t]['o']} ➔ Now {v['o']} "
+            f"(Implied {opening[t]['p']}% ➔ {v['p']}%)"
+            for t, v in probs.items() if t in opening
+        ) or "Odds opening soon / not listed yet"
 
-        toss = "Toss: not happened yet"
-        if stage in (20, 5) or not m.get("venue"):
-            toss2, v = match_info(m["id"])
-            if v and not m.get("venue"):
-                m["venue"] = v
-            if stage in (20, 5):
-                toss = toss2
-        wx = weather(m["venue"], start)
-        analysis = gemini(m, start, stage, wx, toss, odds_txt)
+        if info is None:
+            if stage_key == "prematch" or not m.get("venue"):
+                info = match_details(m["id"], live_obj)
+                if info["venue"] and not m.get("venue"):
+                    m["venue"] = info["venue"]
+            else:
+                info = {
+                    "toss": "Toss: not happened yet (scheduled ~30m pre-match)",
+                    "venue": m.get("venue", ""),
+                    "status": "Scheduled",
+                    "score": [],
+                    "score_txt": "Pre-Match",
+                    "xi": "Pending toss"
+                }
+
+        wx = weather_info(m["venue"], start)
+        base_rules = research_baseline(m, start, wx)
+        analysis = generate_report(m, start, stage_key, wx, info, odds_txt, base_rules)
 
         vs = " vs ".join(m["teams"]) or m["name"]
-        head = (f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
-                f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{stage}m Pre-Match</code>\n"
-                f"🕒 {start.astimezone(BDT):%d %b, %I:%M %p} BDT\n\n")
-        if analysis:
-            body = to_html(analysis[:3300])
+        if stage_key == "toss":
+            head = (
+                f"🪙 <b>PRE-TOSS & CONDITION ALERT (<code>50–55m Pre-Match</code>)</b>\n"
+                f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
+                f"🏟️ Venue: {esc(m['venue'])} | ⏰ Start: <code>{start.astimezone(BDT):%I:%M %p} BDT</code>\n\n"
+            )
         else:
-            body = (f"(AI analysis এখন পাওয়া যায়নি)\n📊 {esc(odds_txt)}\n"
-                    f"🌦 {esc(wx)}\n{esc(toss)}")
+            badge_map = {
+                "prematch": "15m Post-Toss Final",
+                "6ov": "Live 6-Over PP Pulse",
+                "10ov": "Live 10-Over Pulse",
+                "break": "1st Innings Break • Golden Window"
+            }
+            head = (
+                f"🏏 <b>{esc(label(m))}</b> | 🔥 <b>{esc(vs)}</b>\n"
+                f"🏟️ Venue: {esc(m['venue'])} | ⏰ <code>{badge_map[stage_key]}</code>\n\n"
+            )
+
+        if analysis:
+            body = to_html(analysis[:3400])
+        else:
+            body = (
+                f"📊 {esc(odds_txt)}\n"
+                f"🌦 {esc(wx)}\n"
+                f"🪙 {esc(info['toss'])}\n"
+                f"🏏 {esc(info['score_txt'])}"
+            )
+
         if tg(head + body):
-            sent.append(stage)
+            sent.append(stage_key)
 
     keep = {m["id"] for m in matches}
     for k in ("sent", "odds", "open"):
@@ -490,4 +766,5 @@ def main():
     save_state(state)
 
 
-main()
+if __name__ == "__main__":
+    main()
