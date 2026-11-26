@@ -59,7 +59,7 @@
    "w": 7,
    "inn": 1,
    "st": "melbourne stars women opt to bat",
-   "ts": "2026-11-26T09:30:26.874625+00:00"
+   "ts": "2026-11-26T09:35:28.202692+00:00"
   }
  },
  "mom_meta": {
@@ -74,7 +74,7 @@
  },
  "poll_ts": {
   "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T08:05:18.856302+00:00",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:30:26.874625+00:00"
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:35:28.202692+00:00"
  },
  "series_ids": [
   [
@@ -164,13 +164,13 @@
  "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T09:30:26.874625+00:00",
+ "live_ts": "2026-11-26T09:35:28.202692+00:00",
  "live_cache": {
   "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
    "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
    "name": "UP Kings vs Telangana Singhams, 2nd Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Match starts at Nov 26, 09:30 GMT",
+   "status": "Telangana Singhams opt to bowl",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-26",
    "dateTimeGMT": "2026-11-26T09:30:00",
@@ -192,7 +192,7 @@
    "fantasyEnabled": false,
    "bbbEnabled": false,
    "hasSquad": false,
-   "matchStarted": false,
+   "matchStarted": true,
    "matchEnded": false
   },
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
@@ -282,6 +282,37 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
+  },
+  "39dd6c08-96af-4a2d-9db6-b193a04c8787": {
+   "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
+   "name": "Sri Lanka A vs India A, 1st Semi-Final (A1 v B2), ACC Mens Asia Cup Rising Stars 2026",
+   "matchType": "odi",
+   "status": "Match starts at Nov 26, 10:00 GMT",
+   "venue": "West End Park International Cricket Stadium, Doha",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T10:00:00",
+   "teams": [
+    "Sri Lanka A",
+    "India A"
+   ],
+   "teamInfo": [
+    {
+     "name": "India A",
+     "shortname": "INA",
+     "img": "https://g.cricapi.com/iapi/2206-637976248888288069.webp?w=48"
+    },
+    {
+     "name": "Sri Lanka A",
+     "shortname": "SLA",
+     "img": "https://g.cricapi.com/iapi/4191-638101639309122979.webp?w=48"
+    }
+   ],
+   "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
+   "fantasyEnabled": false,
+   "bbbEnabled": false,
+   "hasSquad": true,
+   "matchStarted": false,
+   "matchEnded": false
   },
   "3d6289f5-71db-4917-8de3-9872ba0437e9": {
    "id": "3d6289f5-71db-4917-8de3-9872ba0437e9",
@@ -1221,51 +1252,6 @@
     }
    ],
    "series_id": "7acadb0c-bc4e-4c91-8c47-7bbe53f2227b",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
-  },
-  "5fe792e6-b1dc-40af-9157-f77113c6fffd": {
-   "id": "5fe792e6-b1dc-40af-9157-f77113c6fffd",
-   "name": "Australia vs England, 2nd T20I, England tour of Australia, 2026",
-   "matchType": "t20",
-   "status": "England won by 8 wkts",
-   "venue": "Carrara Oval, Queensland",
-   "date": "2026-11-24",
-   "dateTimeGMT": "2026-11-24T08:15:00",
-   "teams": [
-    "Australia",
-    "England"
-   ],
-   "teamInfo": [
-    {
-     "name": "Australia",
-     "shortname": "AUS",
-     "img": "https://g.cricapi.com/iapi/6-637877070670541994.webp?w=48"
-    },
-    {
-     "name": "England",
-     "shortname": "ENG",
-     "img": "https://g.cricapi.com/iapi/23-637877072894080569.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 184,
-     "w": 8,
-     "o": 20,
-     "inning": "australia Inning 1"
-    },
-    {
-     "r": 188,
-     "w": 2,
-     "o": 13.1,
-     "inning": "Australia,England Inning 1"
-    }
-   ],
-   "series_id": "9c385594-20fe-4d3d-b2bb-df4de8e043bc",
    "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
