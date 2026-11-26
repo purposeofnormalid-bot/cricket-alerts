@@ -55,11 +55,11 @@
    "ts": "2026-11-26T08:00:56.082169+00:00"
   },
   "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "r": 160,
+   "r": 140,
    "w": 7,
    "inn": 1,
-   "st": "",
-   "ts": "2026-11-26T09:40:20.816137+00:00"
+   "st": "melbourne stars women opt to bat",
+   "ts": "2026-11-26T09:45:21.586316+00:00"
   }
  },
  "mom_meta": {
@@ -74,7 +74,7 @@
  },
  "poll_ts": {
   "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T08:05:18.856302+00:00",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:35:28.202692+00:00"
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:45:21.586316+00:00"
  },
  "series_ids": [
   [
@@ -164,7 +164,7 @@
  "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T09:40:20.816137+00:00",
+ "live_ts": "2026-11-26T09:45:21.586316+00:00",
  "live_cache": {
   "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
    "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
@@ -287,7 +287,7 @@
    "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
    "name": "Sri Lanka A vs India A, 1st Semi-Final (A1 v B2), ACC Mens Asia Cup Rising Stars 2026",
    "matchType": "odi",
-   "status": "Match starts at Nov 26, 10:00 GMT",
+   "status": "India A opt to bat",
    "venue": "West End Park International Cricket Stadium, Doha",
    "date": "2026-11-26",
    "dateTimeGMT": "2026-11-26T10:00:00",
