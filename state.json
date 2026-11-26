@@ -56,11 +56,11 @@
    "ts": "2026-11-26T08:00:56.082169+00:00"
   },
   "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "r": 20,
+   "r": 34,
    "w": 1,
    "inn": 2,
    "st": "",
-   "ts": "2026-11-26T10:05:17.735681+00:00"
+   "ts": "2026-11-26T10:10:27.154054+00:00"
   }
  },
  "mom_meta": {
@@ -165,7 +165,7 @@
  "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T10:00:35.207927+00:00",
+ "live_ts": "2026-11-26T10:10:27.154054+00:00",
  "live_cache": {
   "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
    "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
@@ -191,14 +191,14 @@
    ],
    "score": [
     {
-     "r": 41,
-     "w": 0,
-     "o": 2.3,
+     "r": 55,
+     "w": 1,
+     "o": 5,
      "inning": "UP Kings Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
-   "fantasyEnabled": false,
+   "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
@@ -316,11 +316,19 @@
      "img": "https://g.cricapi.com/iapi/4191-638101639309122979.webp?w=48"
     }
    ],
+   "score": [
+    {
+     "r": 16,
+     "w": 0,
+     "o": 2,
+     "inning": "india a Inning 1"
+    }
+   ],
    "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
-   "fantasyEnabled": false,
+   "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": true,
-   "matchStarted": false,
+   "matchStarted": true,
    "matchEnded": false
   },
   "3d6289f5-71db-4917-8de3-9872ba0437e9": {
