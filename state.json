@@ -55,11 +55,11 @@
    "ts": "2026-11-26T08:00:56.082169+00:00"
   },
   "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "r": 113,
-   "w": 5,
+   "r": 128,
+   "w": 7,
    "inn": 1,
    "st": "melbourne stars women opt to bat",
-   "ts": "2026-11-26T09:25:18.995720+00:00"
+   "ts": "2026-11-26T09:30:26.874625+00:00"
   }
  },
  "mom_meta": {
@@ -68,13 +68,13 @@
    "ts": "2026-11-26T07:44:07.249030+00:00"
   },
   "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "cnt": 1,
-   "ts": "2026-11-26T09:05:21.167156+00:00"
+   "cnt": 2,
+   "ts": "2026-11-26T09:30:26.874625+00:00"
   }
  },
  "poll_ts": {
   "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T08:05:18.856302+00:00",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:25:18.995720+00:00"
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T09:30:26.874625+00:00"
  },
  "series_ids": [
   [
@@ -164,8 +164,37 @@
  "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T09:25:18.995720+00:00",
+ "live_ts": "2026-11-26T09:30:26.874625+00:00",
  "live_cache": {
+  "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
+   "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
+   "name": "UP Kings vs Telangana Singhams, 2nd Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "Match starts at Nov 26, 09:30 GMT",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T09:30:00",
+   "teams": [
+    "UP Kings",
+    "Telangana Singhams"
+   ],
+   "teamInfo": [
+    {
+     "name": "Telangana Singhams",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    },
+    {
+     "name": "Up Kings",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    }
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": false,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": false,
+   "matchEnded": false
+  },
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
    "name": "Bihar Rising vs Andhra Warriors, 1st Match, Group B, Indian Softball Cricket League 2026",
@@ -1237,51 +1266,6 @@
     }
    ],
    "series_id": "9c385594-20fe-4d3d-b2bb-df4de8e043bc",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
-  },
-  "051aa0b8-d225-48f9-bf60-e325671b44ba": {
-   "id": "051aa0b8-d225-48f9-bf60-e325671b44ba",
-   "name": "Services vs Meghalaya, Final, Syed Mushtaq Ali Trophy Plate 2026",
-   "matchType": "t20",
-   "status": "Meghalaya won by 2 wkts",
-   "venue": "Nagaland Cricket Stadium, Sovima, Dimapur",
-   "date": "2026-11-24",
-   "dateTimeGMT": "2026-11-24T11:00:00",
-   "teams": [
-    "Services",
-    "Meghalaya"
-   ],
-   "teamInfo": [
-    {
-     "name": "Meghalaya",
-     "shortname": "MGLY",
-     "img": "https://g.cricapi.com/iapi/47-637897799109677927.png?w=48"
-    },
-    {
-     "name": "Services",
-     "shortname": "SER",
-     "img": "https://g.cricapi.com/iapi/80-637897803943638638.png?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 136,
-     "w": 8,
-     "o": 20,
-     "inning": "Services Inning 1"
-    },
-    {
-     "r": 137,
-     "w": 8,
-     "o": 20,
-     "inning": "Meghalaya Inning 1"
-    }
-   ],
-   "series_id": "c4807728-f69b-4067-813a-18c656328b2a",
    "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
