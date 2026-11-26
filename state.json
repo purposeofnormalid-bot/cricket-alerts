@@ -58,11 +58,11 @@
    "ts": "2026-11-26T08:00:56.082169+00:00"
   },
   "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "r": 109,
+   "r": 134,
    "w": 4,
    "inn": 2,
-   "st": "sydney sixers women need 52 runs in 36 balls",
-   "ts": "2026-11-26T10:57:54.911304+00:00"
+   "st": "",
+   "ts": "2026-11-26T11:00:30.708817+00:00"
   }
  },
  "mom_meta": {
@@ -167,13 +167,13 @@
  "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T10:50:26.670963+00:00",
+ "live_ts": "2026-11-26T11:00:30.708817+00:00",
  "live_cache": {
   "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
    "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
    "name": "UP Kings vs Telangana Singhams, 2nd Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Telangana Singhams opt to bowl",
+   "status": "Telangana Singhams need 59 runs in 46 balls",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-26",
    "dateTimeGMT": "2026-11-26T09:30:00",
@@ -193,10 +193,16 @@
    ],
    "score": [
     {
-     "r": 71,
+     "r": 72,
      "w": 8,
-     "o": 8.4,
+     "o": 9,
      "inning": "UP Kings Inning 1"
+    },
+    {
+     "r": 14,
+     "w": 0,
+     "o": 1.2,
+     "inning": "Telangana Singhams Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
@@ -320,9 +326,9 @@
    ],
    "score": [
     {
-     "r": 94,
+     "r": 119,
      "w": 1,
-     "o": 9.5,
+     "o": 14,
      "inning": "india a Inning 1"
     }
    ],
