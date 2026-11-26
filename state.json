@@ -1,5 +1,5 @@
 {
- "v": 16,
+ "v": 17,
  "sent": {
   "e16ecbed-6301-4cd8-b968-05f2cbedb252": [],
   "8c276df2-f50f-44d0-8b8f-645b5c538456": [
@@ -8,7 +8,8 @@
    "2nd_10ov"
   ],
   "5ac40469-f6b2-4030-802e-ec80e81c4912": [
-   "toss"
+   "toss",
+   "prematch"
   ],
   "115b6095-9d3b-4d4f-a006-cfa1de176353": [],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [],
@@ -39,9 +40,9 @@
   }
  },
  "pretoss_odds": {},
- "toss_seen": {},
  "toss_info": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": "adelaide strikers women won toss & elected to bowl"
+  "8c276df2-f50f-44d0-8b8f-645b5c538456": "adelaide strikers women won toss & elected to bowl",
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": "melbourne stars women won toss & elected to bat"
  },
  "snap": {
   "8c276df2-f50f-44d0-8b8f-645b5c538456": {
@@ -59,10 +60,12 @@
   }
  },
  "poll_ts": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T07:52:49.295578+00:00",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T07:50:20.700196+00:00"
+  "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T07:59:00.471555+00:00",
+  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T07:59:00.471555+00:00"
  },
- "ended": {},
+ "ended": {
+  "8c276df2-f50f-44d0-8b8f-645b5c538456": true
+ },
  "series_ids": [
   [
    "03ae5892-ea9f-4662-95f4-879d04dd2399",
@@ -148,10 +151,10 @@
    "start": "2026-11-27T14:30:00+00:00"
   }
  ],
- "matches_ts": "2026-11-26T07:52:49.295578+00:00",
+ "matches_ts": "2026-11-26T07:59:00.471555+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T07:52:49.295578+00:00",
+ "live_ts": "2026-11-26T07:59:00.471555+00:00",
  "live_cache": {
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
