@@ -13,7 +13,7 @@ FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
 INCLUDE_WOMEN = True
 STATE_FILE = "state.json"
-STATE_VERSION = 15
+STATE_VERSION = 16
 BDT = timezone(timedelta(hours=6))
 NOW = datetime.now(timezone.utc)
 
@@ -69,6 +69,7 @@ def load_state():
             "open": s.get("open", {}),
             "pretoss_odds": s.get("pretoss_odds", {}),
             "toss_seen": s.get("toss_seen", {}),
+            "toss_info": s.get("toss_info", {}),
             "snap": s.get("snap", {}),
             "mom_meta": s.get("mom_meta", {}),
             "poll_ts": s.get("poll_ts", {}),
@@ -357,8 +358,9 @@ def format_score_txt(score, espn_obj=None):
     return "Not started"
 
 
-def match_details(mid, live_obj=None, espn_obj=None, fetch_api=True):
-    toss = "Pending (Toss ~30m pre-match)"
+def match_details(mid, live_obj=None, espn_obj=None, state=None, fetch_api=True):
+    cached_toss = (state or {}).get("toss_info", {}).get(mid)
+    toss = cached_toss or "Pending (Toss ~30m pre-match)"
     venue = ""
     status = (live_obj or {}).get("status", "")
     score = (live_obj or {}).get("score") or []
@@ -375,6 +377,8 @@ def match_details(mid, live_obj=None, espn_obj=None, fetch_api=True):
             ended = bool(d.get("matchEnded", ended))
             if d.get("tossWinner"):
                 toss = f"{d['tossWinner']} won toss & elected to {d.get('tossChoice', '?')}"
+                if state is not None:
+                    state.setdefault("toss_info", {})[mid] = toss
             xi_parts = []
             for tb in (d.get("players") or [])[:2]:
                 plist = [p.get("name", "") for p in (tb.get("players") or [])[:11]]
@@ -384,8 +388,13 @@ def match_details(mid, live_obj=None, espn_obj=None, fetch_api=True):
                 xi_txt = " | ".join(xi_parts)
         except Exception:
             pass
-    if espn_obj and espn_obj.get("ended"):
-        ended = True
+    if espn_obj:
+        if espn_obj.get("ended"):
+            ended = True
+        if espn_obj.get("inn", 0) >= 1:
+            started = True
+    if started and "pending" in toss.lower():
+        toss = "Live In-Play (Toss Completed)"
     return {
         "toss": toss, "venue": venue, "status": status, "score": score,
         "score_txt": format_score_txt(score, espn_obj), "started": started,
@@ -479,30 +488,37 @@ def weather_info(venue, start):
         parts = [p.strip() for p in (venue or "").split(",")]
         city = parts[-2] if len(parts) >= 3 else parts[-1]
         p = requests.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1}, timeout=15).json()["results"][0]
-        w = requests.get("https://api.open-meteo.com/v1/forecast", params={
+        resp = requests.get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": p["latitude"], "longitude": p["longitude"],
             "hourly": "precipitation_probability,cloud_cover,relative_humidity_2m,dew_point_2m",
-            "forecast_days": 3, "timezone": "UTC"
-        }, timeout=15).json()["hourly"]
-        target_hr = start.strftime("%Y-%m-%dT%H:00")
+            "forecast_days": 3, "timezone": "auto"
+        }, timeout=15).json()
+        w = resp["hourly"]
+        offset_sec = int(resp.get("utc_offset_seconds", 0))
+        local_start = start + timedelta(seconds=offset_sec)
+        target_hr = local_start.strftime("%Y-%m-%dT%H:00")
         i = w["time"].index(target_hr) if target_hr in w["time"] else 0
-        is_night = start.astimezone(BDT).hour >= 17
-        dew_tag = "High" if (is_night and (w["relative_humidity_2m"][i] >= 68 or w["dew_point_2m"][i] >= 17)) else "Low"
-        return f"Rain {w['precipitation_probability'][i]}% | Cloud {w['cloud_cover'][i]}% | Dew {w['dew_point_2m'][i]}°C ({dew_tag})"
+        is_night = local_start.hour >= 17 or local_start.hour <= 4
+        rh = w["relative_humidity_2m"][i]
+        dp = w["dew_point_2m"][i]
+        high_dew = is_night and (rh >= 68 or dp >= 16.5)
+        dew_tag = "High" if high_dew else ("Moderate" if (is_night and dp >= 14.0) else "Low")
+        txt = f"Local {local_start:%I:%M %p} | Rain {w['precipitation_probability'][i]}% | Cloud {w['cloud_cover'][i]}% | Dew {dp}°C ({dew_tag})"
+        return {"txt": txt, "is_night": is_night, "high_dew": high_dew}
     except Exception:
-        return "Clear/Dry Forecast (Open-Meteo N/A)"
+        is_night = start.astimezone(BDT).hour >= 17
+        return {"txt": "Clear/Dry Forecast (Open-Meteo N/A)", "is_night": is_night, "high_dew": False}
 
 
-def research_baseline(m, start, wx):
+def research_baseline(m, wx):
     fmt = (m.get("type") or "").upper()
-    is_night = start.astimezone(BDT).hour >= 17
-    high_dew = "(High)" in wx
+    is_night, high_dew = wx["is_night"], wx["high_dew"]
     if "TEST" in fmt:
         return "High Impact (+4.9% Edge; 47% vs 34% in 5 yrs)", "Test Home Bias (~59% Win | +0.50 Log-Odds)", "Bat First"
     if "ODI" in fmt:
-        ti = "Critical Dew Edge (+5.5% Night Chase)" if high_dew else "Low Impact (+2.2% Baseline)"
+        ti = "High Dew Impact (+5.5% Night Chase)" if high_dew else "Low-Moderate (+2.2% Baseline)"
         return ti, "ODI Home Bias (~59% Win | +0.50 Log-Odds)", ("Bowl First" if (high_dew or is_night) else "Bat First")
-    ti = "Critical Dew Edge (+6.5% Win Boost)" if high_dew else "Low-Moderate (+2.8% Baseline)"
+    ti = "High Evening Dew Impact (+6.5% Chase Boost)" if high_dew else ("Moderate Night Factor (+3.5%)" if is_night else "Low-Moderate (+2.8% Baseline)")
     return ti, "T20 Neutral Home (50% Baseline)", ("Bowl First" if (high_dew or is_night) else "Bat First")
 
 
@@ -543,7 +559,7 @@ def compute_math_pack(m, info, wx, stage_key):
         return {
             "lines": ["• **Session Focus:** Test Match — Track Day/Session Run Rate & 1st Innings Lead"],
             "chase_p": 47.0, "defend_p": 53.0,
-            "fav": "1st Innings Batting Edge (53%)",
+            "fav": "**`1st Innings Batting Edge`** (53.0%)",
             "note": "Test Format Baseline"
         }
 
@@ -551,14 +567,13 @@ def compute_math_pack(m, info, wx, stage_key):
     is_w = is_women_match(m)
     max_ov = 50.0 if is_odi else 20.0
     par = (225.0 if is_w else 275.0) if is_odi else (144.0 if is_w else 168.0)
-    high_dew = "(High)" in wx
+    high_dew = wx["high_dew"]
     dew_logit = 0.28 if high_dew else 0.04
     score = info.get("score") or []
     sessions = []
     chase_p, defend_p = 50.0, 50.0
     note = ""
 
-    # Case A: 2nd Innings Live OR 1st Innings Break
     is_break_or_2nd = (
         stage_key in ("break", "2nd_6ov", "2nd_10ov")
         or len(score) >= 2
@@ -574,14 +589,12 @@ def compute_math_pack(m, info, wx, stage_key):
         runs_needed = max(target - r2, 0)
         rrr = runs_needed / max(rem_ov, 0.16) if rem_ov > 0 else 0.0
 
-        # DLS Resource vs Runs Needed Log-Odds
         exp_rem = par * dls_res(rem_ov, w2, max_ov)
         scale = max(7.0, (34.0 if is_odi else 24.0) * math.sqrt(max(rem_ov, 0.5) / max_ov))
         logit = ((exp_rem - runs_needed) / scale) + (dew_logit * (rem_ov / max_ov))
         chase_p = round(min(max(100.0 / (1.0 + math.exp(-logit)), 5.0), 95.0), 1)
         defend_p = round(100.0 - chase_p, 1)
 
-        # Active 2nd Innings Sessions (skip completed milestones)
         base_rr = par / max_ov
         crr2 = (r2 / ov2) if ov2 >= 2.0 else base_rr
         dew_boost = 1.04 if high_dew else 1.0
@@ -598,7 +611,6 @@ def compute_math_pack(m, info, wx, stage_key):
         sessions.insert(0, {"txt": target_line, "pick": "", "p": 0})
         note = f"DLS Rem Resource: {dls_res(rem_ov, w2, max_ov)*100:.1f}% | Exp Rem Runs: {exp_rem:.1f} vs Need {runs_needed}"
 
-    # Case B: 1st Innings Live
     elif len(score) == 1 and ov_to_dec(score[0].get("o", 0)) >= 1.0:
         r1 = int(score[0].get("r", 0))
         w1 = int(score[0].get("w", 0))
@@ -627,7 +639,6 @@ def compute_math_pack(m, info, wx, stage_key):
         defend_p = round(100.0 - chase_p, 1)
         note = f"DLS Rem Resource: {res_rem*100:.1f}% | DLS Projected 1st Inn: {proj_final:.1f} vs Par {par:.0f}"
 
-    # Case C: Pre-Match / Pre-Toss
     else:
         dew_mult = 1.03 if high_dew else 1.0
         if is_odi:
@@ -697,7 +708,7 @@ def probs_for(match, events):
 
 def analyze_market_flow(opening, probs, pretoss=None):
     if not probs:
-        return "Odds Pending (Not Listed Yet)", "Pending Market Open", "Awaiting Market Open"
+        return "Market Unopened (Odds Not Listed Yet)", "Market Unopened — No Verified Public/Sharp Flow Yet", "Market Unopened"
     base = opening or probs
     parts, max_shift, flow_team = [], 0.0, ""
     for t, v in probs.items():
@@ -758,7 +769,7 @@ def generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt,
     is_pretoss = (stage_key == "toss") or (stage_key == "preview" and not toss_done)
 
     stage_labels = {
-        "toss": "Pre-Toss Full Pulse (~50m Pre-Match)",
+        "toss": "Pre-Toss Strategy Blueprint (~50m Pre-Match)",
         "prematch": "Post-Toss Confirmed XI & Full Session",
         "6ov": "1st Inn • Live 6-Over PP Pulse",
         "10ov": "1st Inn • Live 10-Over Pulse",
@@ -766,24 +777,31 @@ def generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt,
         "2nd_6ov": "2nd Inn • Live 6-Over Chase Pulse",
         "2nd_10ov": "2nd Inn • Live 10-Over Chase Pulse",
         "momentum": f"LIVE MOMENTUM ALERT • {event_reason}",
-        "preview": "Live In-Play Snapshot" if info["started"] else "Pre-Toss Full Snapshot"
+        "preview": "Live In-Play Snapshot" if info["started"] else "Pre-Toss Strategy Snapshot"
     }
     stage_title = stage_labels.get(stage_key, stage_key)
     session_block = "\n".join(mpack["lines"])
 
     if is_pretoss:
-        toss_block = f"""1. **Captains' Last-5 Toss Trend:** 🔵 **`{t1}`** (Real Captain — X/5 wins, Bat/Bowl pref) vs 🟠 **`{t2}`** (Real Captain — Y/5 wins, Bat/Bowl pref)
-2. **Toss Impact & Expected Decision:** {toss_impact} | Expected Call: **`{expected_call}`** (XX% Probability)
-3. **Public vs. Traders' Sentiment:** {flow_txt} | Sharp trader lean vs. public expectation
-4. **Toss & Pitch Basis:** (1-2 crisp sentences on {m['venue']} pitch, {wx}, and why this toss decision creates the tactical edge)
+        toss_header = "━━━ 🪙 **TOSS STRATEGY, STAKES & SCENARIOS** ━━━"
+        toss_block = f"""1. **Toss Impact & Dependency:** {toss_impact} ({wx['txt']}) | **Needs Toss More:** **`Team Name`** — (1 crisp line on why this team relies more on winning the toss)
+2. **Formation & Captaincy DNA:**
+• 🔵 **`{t1}`** (Real Captain — Last-5 Toss: X/5, Pref: Bat/Bowl) — (core squad strength/formation)
+• 🟠 **`{t2}`** (Real Captain — Last-5 Toss: Y/5, Pref: Bat/Bowl) — (core squad strength/formation)
+3. **Pitch History & Table Stakes:** (recent pitch/double-header track behavior at {m['venue']} + tournament/NRR stakes influencing captaincy)
+4. **Conditional Scenarios (If–Then Blueprint):**
+• **If 🔵 `{t1}` wins ➔ `Bat / Bowl First` (XX%):** (how 1st-inn session & match edge shift)
+• **If 🟠 `{t2}` wins ➔ `Bat / Bowl First` (YY%):** (how 1st-inn session & match edge shift)
+5. **Match Market Sentiment (H2H):** {flow_txt}
 
-> 🪙 **Expected Toss Winner:** **`Winning Team Name`** (XX% vs YY%) — Key tactical/trend note (coin flip variance applies)"""
-        markers = ["Expected Toss Winner", "Expected Match Winner", "Session & Chase Favorite"]
+> 🪙 **Pre-Toss Blueprint:** Coin Flip: `50/50 (Skip)` | Highest Toss Need: **`Team Name`** | Expected Call: **`{expected_call} (XX%)`**"""
+        markers = ["Pre-Toss Blueprint", "Expected Match Winner", "Session & Chase Favorite"]
     else:
+        toss_header = "━━━ 🪙 **CONFIRMED TOSS & MARKET REACTION** ━━━"
         toss_block = f"""1. **Confirmed Toss & Live Score:** **`{info['toss']}`** | Score: `{info['score_txt']}`
-2. **Post-Toss Overreaction Check:** {over_txt} — note if public overreacted to the toss/score
-3. **Public vs. Traders' Sentiment:** {flow_txt} | Sharp vs. public lean
-4. **Condition & Momentum Basis:** (1-2 crisp sentences on {wx}, pitch behavior, XI impact, and current match state)"""
+2. **Post-Toss Overreaction Check:** {over_txt} — (note if public overreacted or pricing stayed calm)
+3. **Public vs. Traders' Sentiment:** {flow_txt}
+4. **Condition & Tactical Shift:** (1-2 crisp sentences on {wx['txt']}, pitch behavior, XI impact, and current match momentum)"""
         markers = ["Expected Match Winner", "Session & Chase Favorite"]
 
     prompt = f"""You are a quantitative cricket trading analyst. Write a complete, sharp 3-block analytical report for **{stage_title}** in clean English.
@@ -796,7 +814,7 @@ DATA:
 - Live Event Trigger: {event_reason or 'Scheduled Stage'}
 - Toss Info: {info['toss']}
 - Playing XI: {info['xi']}
-- Weather & Dew: {wx}
+- Local Weather & Dew: {wx['txt']}
 - Toss Baseline: {toss_impact} | Expected Call: {expected_call}
 - Home Bias Rule: {home_bias}
 - Market Odds: {odds_txt}
@@ -805,13 +823,15 @@ DATA:
 - Python DLS/Math Audit: {mpack['note']}
 
 STRICT RULES:
-- 100% ENGLISH ONLY. NEVER write "Captain A" or "Captain B" — ALWAYS use real captain/team names for {t1} and {t2}.
+- 100% ENGLISH ONLY. NEVER write "Captain A" or "Captain B" — ALWAYS use Google Search for real captain names of {t1} and {t2} (or write "{t1} Capt." if unannounced).
+- HONEST MARKET RULE: If Market Flow says "Market Unopened", NEVER invent sharp money or public betting leans—state strictly that market lines are unopened.
+- NO FAKE COIN-FLIP PREDICTIONS: Coin flip is always 50/50 (Skip); focus strictly on Toss Dependency, Squad DNA, Table/NRR Stakes, and If–Then Conditional Scenarios.
 - STRICT MATH LOCK: In the SESSION & CHASE FAVORITES section below, copy EVERY Python-calculated number, Line, Range, Over/Under %, Chase/Defend %, and the Favorite callout VERBATIM without changing any digit. Only write the 1-2 sentence explanation at the end.
 - Highlight team names in verdict boxes using **`Team Name`** so Telegram displays bold color highlight.
-- Ensure {t1}% + {t2}% = 100%. Use `CLEAR VALUE EDGE` only if Model Fair Win % differs from Market Implied % by >4.5%; else `SLIGHT EDGE` or `NO CLEAR EDGE — SKIP`.
+- Ensure {t1}% + {t2}% = 100%. Use `CLEAR VALUE EDGE` only if Model Fair Win % differs from Market Implied % by >4.5% (and market is open); else `SLIGHT EDGE` or `NO CLEAR EDGE — SKIP`.
 - Follow this EXACT 3-block structure:
 
-━━━ 🪙 **TOSS, SENTIMENT & CONDITIONS** ━━━
+{toss_header}
 {toss_block}
 
 ━━━ 📈 **MATCH PROBABILITY & EDGE** ━━━
@@ -864,20 +884,20 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, espn_obj=No
     odds_txt, flow_txt, over_txt = analyze_market_flow(state["open"].get(m["id"], {}), probs, pretoss)
 
     if info is None:
-        need_api = stage_key in ("prematch", "preview", "break") or not m.get("venue")
-        info = match_details(m["id"], live_obj, espn_obj, fetch_api=need_api)
+        need_api = stage_key in ("prematch", "preview", "break", "momentum") or not m.get("venue")
+        info = match_details(m["id"], live_obj, espn_obj, state, fetch_api=need_api)
         if info["venue"] and not m.get("venue"):
             m["venue"] = info["venue"]
 
     wx = weather_info(m["venue"], start)
     mpack = compute_math_pack(m, info, wx, stage_key)
-    analysis = generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt, research_baseline(m, start, wx), mpack, event_reason)
+    analysis = generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt, research_baseline(m, wx), mpack, event_reason)
     t1 = m["teams"][0] if len(m["teams"]) >= 1 else m["name"]
     t2 = m["teams"][1] if len(m["teams"]) >= 2 else ""
     vs_styled = f"🔵 <b><code>{esc(t1)}</code></b> vs 🟠 <b><code>{esc(t2)}</code></b>" if t2 else f"<b>{esc(m['name'])}</b>"
     toss_done = ("won toss" in info["toss"].lower()) or info["started"]
     badge = {
-        "toss": "Pre-Toss Full Pulse",
+        "toss": "Pre-Toss Blueprint",
         "prematch": "Post-Toss + Full Session",
         "6ov": "1st Inn • 6-Over PP Pulse",
         "10ov": "1st Inn • 10-Over Pulse",
@@ -885,7 +905,7 @@ def dispatch_card(m, start, stage_key, state, events, live_obj=None, espn_obj=No
         "2nd_6ov": "2nd Inn • 6-Over Chase Pulse",
         "2nd_10ov": "2nd Inn • 10-Over Chase Pulse",
         "momentum": f"⚡ {event_reason}",
-        "preview": "🔴 Live Snapshot" if info["started"] else ("Post-Toss Snapshot" if toss_done else "Pre-Toss Snapshot")
+        "preview": "🔴 Live Snapshot" if info["started"] else ("Post-Toss Snapshot" if toss_done else "Pre-Toss Blueprint")
     }.get(stage_key, stage_key)
     head = (
         f"🏏 <b>{esc(label(m))}</b>\n"
@@ -924,7 +944,7 @@ def build_schedule_lines(todays, live_map, rss_items, state):
 
 def main():
     state = load_state()
-    for k in ("sent", "odds", "open", "pretoss_odds", "toss_seen", "snap", "mom_meta", "poll_ts", "ended"):
+    for k in ("sent", "odds", "open", "pretoss_odds", "toss_seen", "toss_info", "snap", "mom_meta", "poll_ts", "ended"):
         state.setdefault(k, {})
 
     is_manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
@@ -955,7 +975,7 @@ def main():
         lines = build_schedule_lines(todays, live_map, rss_items, state)
         sched_txt = ("\n\n" + "\n".join(lines)) if lines else "\n\nNo remaining matches today."
         tg(
-            f"✅ <b>DLS Math Engine (v15) Active</b>\n"
+            f"✅ <b>DLS Math + Blueprint Engine (v16) Active</b>\n"
             f"📡 <code>CricAPI Hits: {API_DIAG['hits']}/{API_DIAG['limit']} | Matches: {len(matches)} | ESPN RSS: {len(rss_items)}</code>"
             f"{sched_txt}"
         )
@@ -975,7 +995,7 @@ def main():
             continue
         stage_key, info, ev_reason = None, None, ""
 
-        # 1. Pre-Toss (~40-65m pre-match)
+        # 1. Pre-Toss Blueprint (~40-65m pre-match)
         if 40 < mins <= 65 and "toss" not in sent:
             stage_key = "toss"
 
@@ -983,7 +1003,7 @@ def main():
         elif -5 <= mins <= 34 and "prematch" not in sent:
             last_p = state["poll_ts"].get(mid)
             if not last_p or NOW - parse(last_p) >= timedelta(minutes=6) or mins <= 14:
-                info = match_details(mid, live_obj, espn_obj, fetch_api=True)
+                info = match_details(mid, live_obj, espn_obj, state, fetch_api=True)
                 state["poll_ts"][mid] = NOW.isoformat()
                 toss_done = "won toss" in info["toss"].lower()
                 if toss_done:
@@ -1004,7 +1024,7 @@ def main():
                 gap_m = 5 if in_break_window(m) else 12
                 last_p = state["poll_ts"].get(mid)
                 if not last_p or NOW - parse(last_p) >= timedelta(minutes=gap_m):
-                    info = match_details(mid, None, espn_obj, fetch_api=True)
+                    info = match_details(mid, None, espn_obj, state, fetch_api=True)
                     state["poll_ts"][mid] = NOW.isoformat()
                     if info["ended"]:
                         state["ended"][mid] = True
@@ -1014,9 +1034,12 @@ def main():
             if not stage_key:
                 ev_reason = detect_momentum_event(mid, live_obj or info, espn_obj, state)
                 if ev_reason:
+                    if info is None or not info["score"]:
+                        info = match_details(mid, live_obj, espn_obj, state, fetch_api=True)
+                    if info["ended"]:
+                        state["ended"][mid] = True
+                        continue
                     stage_key = "momentum"
-                    if info is None:
-                        info = match_details(mid, live_obj, espn_obj, fetch_api=False)
             else:
                 detect_momentum_event(mid, live_obj or info, espn_obj, state)
 
@@ -1031,7 +1054,7 @@ def main():
         dispatch_card(target, parse(target["start"]), "preview", state, events, live_obj=live_map.get(target["id"]), espn_obj=parse_espn_score(target, rss_items), mark_sent=False)
 
     keep = {m["id"] for m in matches}
-    for k in ("sent", "odds", "open", "pretoss_odds", "toss_seen", "snap", "mom_meta", "poll_ts", "ended"):
+    for k in ("sent", "odds", "open", "pretoss_odds", "toss_seen", "toss_info", "snap", "mom_meta", "poll_ts", "ended"):
         state[k] = {i: v for i, v in state[k].items() if i in keep}
     save_state(state)
 
