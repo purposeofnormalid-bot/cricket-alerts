@@ -1,99 +1,18 @@
 {
  "v": 17,
  "sent": {
-  "e16ecbed-6301-4cd8-b968-05f2cbedb252": [
-   "toss",
-   "prematch"
-  ],
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": [
-   "toss",
-   "10ov",
-   "2nd_10ov"
-  ],
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": [
-   "toss",
-   "prematch",
-   "6ov",
-   "10ov",
-   "break",
-   "2nd_6ov",
-   "2nd_10ov"
-  ],
   "115b6095-9d3b-4d4f-a006-cfa1de176353": [],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [],
-  "549a8787-9383-4e56-8b50-70fe4c91fcb6": []
+  "549a8787-9383-4e56-8b50-70fe4c91fcb6": [],
+  "c81e7d49-463b-478a-bc28-06608c6466d2": []
  },
- "odds": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": {
-   "Adelaide Strikers": {
-    "o": 1.9,
-    "p": 50.0
-   },
-   "Sydney Thunder": {
-    "o": 1.9,
-    "p": 50.0
-   }
-  }
- },
- "open": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": {
-   "Adelaide Strikers": {
-    "o": 1.9,
-    "p": 50.0
-   },
-   "Sydney Thunder": {
-    "o": 1.9,
-    "p": 50.0
-   }
-  }
- },
+ "odds": {},
+ "open": {},
  "pretoss_odds": {},
- "toss_info": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": "adelaide strikers women won toss & elected to bowl",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "melbourne stars women won toss & elected to bat"
- },
- "snap": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": {
-   "r": 233,
-   "w": 3,
-   "inn": 2,
-   "st": "",
-   "ts": "2026-11-26T08:00:56.082169+00:00"
-  },
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "r": 161,
-   "w": 4,
-   "inn": 2,
-   "st": "",
-   "ts": "2026-11-26T11:35:19.988893+00:00"
-  },
-  "e16ecbed-6301-4cd8-b968-05f2cbedb252": {
-   "r": 155,
-   "w": 7,
-   "inn": 2,
-   "st": "",
-   "ts": "2026-11-26T18:05:18.554099+00:00"
-  }
- },
- "mom_meta": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": {
-   "cnt": 2,
-   "ts": "2026-11-26T07:44:07.249030+00:00"
-  },
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": {
-   "cnt": 3,
-   "ts": "2026-11-26T10:20:20.984886+00:00"
-  },
-  "e16ecbed-6301-4cd8-b968-05f2cbedb252": {
-   "cnt": 1,
-   "ts": "2026-11-26T18:00:32.705223+00:00"
-  }
- },
- "poll_ts": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": "2026-11-26T08:05:18.856302+00:00",
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": "2026-11-26T11:25:28.859371+00:00",
-  "e16ecbed-6301-4cd8-b968-05f2cbedb252": "2026-11-26T18:00:32.705223+00:00"
- },
+ "toss_info": {},
+ "snap": {},
+ "mom_meta": {},
+ "poll_ts": {},
  "series_ids": [
   [
    "03ae5892-ea9f-4662-95f4-879d04dd2399",
@@ -106,42 +25,6 @@
  ],
  "series_ts": "2026-11-25T17:20:35.723839+00:00",
  "matches": [
-  {
-   "id": "8c276df2-f50f-44d0-8b8f-645b5c538456",
-   "name": "Sydney Thunder Women vs Adelaide Strikers Women, 34th Match, Womens Big Bash League 2026",
-   "venue": "North Sydney Oval, Sydney",
-   "teams": [
-    "Sydney Thunder Women",
-    "Adelaide Strikers Women"
-   ],
-   "type": "T20",
-   "series": "Womens Big Bash League 2026",
-   "start": "2026-11-26T04:40:00+00:00"
-  },
-  {
-   "id": "5ac40469-f6b2-4030-802e-ec80e81c4912",
-   "name": "Sydney Sixers Women vs Melbourne Stars Women, 35th Match, Womens Big Bash League 2026",
-   "venue": "North Sydney Oval, Sydney",
-   "teams": [
-    "Sydney Sixers Women",
-    "Melbourne Stars Women"
-   ],
-   "type": "T20",
-   "series": "Womens Big Bash League 2026",
-   "start": "2026-11-26T08:10:00+00:00"
-  },
-  {
-   "id": "e16ecbed-6301-4cd8-b968-05f2cbedb252",
-   "name": "Abu Dhabi Knight Riders vs MI Emirates, 7th Match, International League T20 2026",
-   "venue": "Zayed Cricket Stadium, Abu Dhabi",
-   "teams": [
-    "Abu Dhabi Knight Riders",
-    "MI Emirates"
-   ],
-   "type": "T20",
-   "series": "International League T20 2026",
-   "start": "2026-11-26T14:30:00+00:00"
-  },
   {
    "id": "c308d96d-b24e-4353-9afe-69972a6598ec",
    "name": "Australia vs England, t20",
@@ -177,9 +60,21 @@
    "type": "T20",
    "series": "International League T20 2026",
    "start": "2026-11-27T14:30:00+00:00"
+  },
+  {
+   "id": "c81e7d49-463b-478a-bc28-06608c6466d2",
+   "name": "India vs New Zealand, ",
+   "venue": "",
+   "teams": [
+    "India",
+    "New Zealand"
+   ],
+   "type": "",
+   "series": "India tour of New Zealand 2026",
+   "start": "2026-11-27T22:00:00+00:00"
   }
  ],
- "matches_ts": "2026-11-26T07:59:00.471555+00:00",
+ "matches_ts": "2026-11-26T18:35:17.339414+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "live_ts": "2026-11-26T11:10:33.771547+00:00",
@@ -1299,9 +1194,5 @@
    "matchEnded": true
   }
  },
- "ended": {
-  "8c276df2-f50f-44d0-8b8f-645b5c538456": true,
-  "5ac40469-f6b2-4030-802e-ec80e81c4912": true,
-  "e16ecbed-6301-4cd8-b968-05f2cbedb252": true
- }
+ "ended": {}
 }
