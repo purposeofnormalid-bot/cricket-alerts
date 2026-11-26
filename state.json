@@ -1,5 +1,5 @@
 {
- "v": 15,
+ "v": 16,
  "sent": {
   "e16ecbed-6301-4cd8-b968-05f2cbedb252": [],
   "8c276df2-f50f-44d0-8b8f-645b5c538456": [
@@ -40,13 +40,14 @@
  },
  "pretoss_odds": {},
  "toss_seen": {},
+ "toss_info": {},
  "snap": {
   "8c276df2-f50f-44d0-8b8f-645b5c538456": {
-   "r": 114,
+   "r": 203,
    "w": 3,
    "inn": 2,
-   "st": "adelaide strikers women need 127 runs in 48 balls",
-   "ts": "2026-11-26T07:25:19.945209+00:00"
+   "st": "",
+   "ts": "2026-11-26T07:30:36.153778+00:00"
   }
  },
  "mom_meta": {
@@ -147,7 +148,7 @@
  "matches_ts": "2026-11-26T07:00:18.113172+00:00",
  "schedule_date": "2026-11-26",
  "schedule_count": 3,
- "live_ts": "2026-11-26T07:20:22.987931+00:00",
+ "live_ts": "2026-11-26T07:30:36.153778+00:00",
  "live_cache": {
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
