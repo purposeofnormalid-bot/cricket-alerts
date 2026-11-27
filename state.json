@@ -8,7 +8,8 @@
    "toss",
    "prematch",
    "6ov",
-   "10ov"
+   "10ov",
+   "break"
   ],
   "549a8787-9383-4e56-8b50-70fe4c91fcb6": [],
   "c81e7d49-463b-478a-bc28-06608c6466d2": [],
@@ -28,14 +29,14 @@
    "r": 108,
    "w": 10,
    "inn": 1,
-   "st": "",
-   "ts": "2026-11-27T09:40:22.677496+00:00"
+   "st": "innings break",
+   "ts": "2026-11-27T09:45:21.877590+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
-  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T09:35:24.431377+00:00",
-  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T09:35:24.431377+00:00"
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T09:45:21.877590+00:00",
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T09:45:21.877590+00:00"
  },
  "ended": {},
  "results": {
@@ -316,9 +317,9 @@
    ],
    "score": [
     {
-     "r": 3,
-     "w": 1,
-     "o": 0.5,
+     "r": 7,
+     "w": 2,
+     "o": 1.4,
      "inning": "Chandigarh Royal Strikers Inning 1"
     }
    ],
@@ -595,7 +596,7 @@
    "id": "52e54477-0f42-4b04-8ae2-63851f0b1ef1",
    "name": "Pakistan A vs Bangladesh A, 2nd Semi-Final (B1 v A2), ACC Mens Asia Cup Rising Stars 2026",
    "matchType": "odi",
-   "status": "Match starts at Nov 27, 10:00 GMT",
+   "status": "Bangladesh A opt to bat",
    "venue": "West End Park International Cricket Stadium, Doha",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T10:00:00",
@@ -1388,7 +1389,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T09:40:22.677496+00:00",
+ "live_ts": "2026-11-27T09:45:21.877590+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
