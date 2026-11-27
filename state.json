@@ -29,23 +29,23 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 46,
-   "w": 1,
+   "r": 49,
+   "w": 2,
    "inn": 2,
-   "st": "",
-   "ts": "2026-11-27T10:40:19.855227+00:00"
+   "st": "england need 60 runs in 92 balls",
+   "ts": "2026-11-27T10:45:24.253420+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 45,
+   "r": 65,
    "w": 4,
    "inn": 1,
-   "st": "hobart hurricanes women opt to bowl",
-   "ts": "2026-11-27T10:40:19.855227+00:00"
+   "st": "",
+   "ts": "2026-11-27T10:45:24.253420+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
-  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T10:30:33.456342+00:00",
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T10:45:24.253420+00:00",
   "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T10:40:19.855227+00:00"
  },
  "ended": {},
@@ -307,7 +307,7 @@
    "id": "edf5ff2c-ce8a-45d5-a1ce-ae874af05073",
    "name": "Chandigarh Royal Strikers vs Andhra Warriors, 6th Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Andhra Warriors opt to bowl",
+   "status": "Andhra Warriors need 59 runs in 46 balls",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T09:30:00",
@@ -328,9 +328,15 @@
    "score": [
     {
      "r": 62,
-     "w": 9,
-     "o": 8.5,
+     "w": 10,
+     "o": 9,
      "inning": "Chandigarh Royal Strikers Inning 1"
+    },
+    {
+     "r": 4,
+     "w": 1,
+     "o": 1.2,
+     "inning": "Andhra Warriors Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
@@ -628,9 +634,9 @@
    ],
    "score": [
     {
-     "r": 24,
+     "r": 30,
      "w": 2,
-     "o": 6.2,
+     "o": 8.5,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1407,7 +1413,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T10:34:07.254441+00:00",
+ "live_ts": "2026-11-27T10:45:24.253420+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
