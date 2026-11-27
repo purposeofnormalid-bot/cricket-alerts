@@ -5,7 +5,8 @@
    "toss",
    "prematch",
    "6ov",
-   "10ov"
+   "10ov",
+   "break"
   ],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [
    "toss",
@@ -38,17 +39,17 @@
    "ts": "2026-11-27T11:50:21.709262+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 5,
+   "r": 4,
    "w": 0,
    "inn": 2,
-   "st": "",
-   "ts": "2026-11-27T11:50:21.709262+00:00"
+   "st": "hobart hurricanes women need 164 runs",
+   "ts": "2026-11-27T11:55:17.966598+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T11:45:23.968441+00:00",
-  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T11:45:23.968441+00:00"
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T11:55:17.966598+00:00"
  },
  "ended": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": true
@@ -323,6 +324,10 @@
    ],
    "teamInfo": [
     {
+     "name": "JK Northern Warriors",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    },
+    {
      "name": "Telangana Singhams",
      "img": "https://h.cricapi.com/img/icon512.png"
     }
@@ -336,7 +341,7 @@
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
-   "fantasyEnabled": false,
+   "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
@@ -673,9 +678,9 @@
    ],
    "score": [
     {
-     "r": 89,
+     "r": 99,
      "w": 2,
-     "o": 22.4,
+     "o": 24,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1407,7 +1412,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T11:50:21.709262+00:00",
+ "live_ts": "2026-11-27T11:55:17.966598+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
