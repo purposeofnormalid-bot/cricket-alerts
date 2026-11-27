@@ -18,7 +18,9 @@
  "toss_info": {},
  "snap": {},
  "mom_meta": {},
- "poll_ts": {},
+ "poll_ts": {
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T07:40:23.144735+00:00"
+ },
  "series_ids": [
   [
    "03ae5892-ea9f-4662-95f4-879d04dd2399",
@@ -131,13 +133,99 @@
  "matches_ts": "2026-11-27T04:35:17.487786+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
- "live_ts": "2026-11-26T11:10:33.771547+00:00",
+ "live_ts": "2026-11-27T07:40:23.144735+00:00",
  "live_cache": {
+  "03e96f7c-b12c-4fee-b32d-f385ab68e572": {
+   "id": "03e96f7c-b12c-4fee-b32d-f385ab68e572",
+   "name": "Andaman Admirals vs UP Kings, 5th Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "UP Kings won by 50 runs",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T15:30:00",
+   "teams": [
+    "Andaman Admirals",
+    "UP Kings"
+   ],
+   "teamInfo": [
+    {
+     "name": "Andaman Admirals",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    },
+    {
+     "name": "Up Kings",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    }
+   ],
+   "score": [
+    {
+     "r": 104,
+     "w": 7,
+     "o": 9,
+     "inning": "up kings Inning 1"
+    },
+    {
+     "r": 54,
+     "w": 8,
+     "o": 9,
+     "inning": "Andaman Admirals,UP Kings Inning 1"
+    }
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": true,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": true,
+   "matchEnded": true
+  },
+  "2abf13c7-c314-4313-be7c-d99ad98d4aef": {
+   "id": "2abf13c7-c314-4313-be7c-d99ad98d4aef",
+   "name": "Andaman Admirals vs Haryana Phoenix, 3rd Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "Haryana Phoenix won by 39 runs",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T11:30:00",
+   "teams": [
+    "Andaman Admirals",
+    "Haryana Phoenix"
+   ],
+   "teamInfo": [
+    {
+     "name": "Andaman Admirals",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    },
+    {
+     "name": "Haryana Phoenix",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    }
+   ],
+   "score": [
+    {
+     "r": 109,
+     "w": 5,
+     "o": 9,
+     "inning": "Haryana Phoenix Inning 1"
+    },
+    {
+     "r": 70,
+     "w": 7,
+     "o": 9,
+     "inning": "Andaman Admirals Inning 1"
+    }
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": true,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": true,
+   "matchEnded": true
+  },
   "444b7a54-20d3-4a47-9e22-de5024e0f00c": {
    "id": "444b7a54-20d3-4a47-9e22-de5024e0f00c",
    "name": "UP Kings vs Telangana Singhams, 2nd Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Telangana Singhams need 54 runs in 39 balls",
+   "status": "Telangana Singhams won by 5 wkts",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-26",
    "dateTimeGMT": "2026-11-26T09:30:00",
@@ -163,9 +251,9 @@
      "inning": "UP Kings Inning 1"
     },
     {
-     "r": 19,
-     "w": 1,
-     "o": 2.3,
+     "r": 73,
+     "w": 5,
+     "o": 8,
      "inning": "Telangana Singhams Inning 1"
     }
    ],
@@ -174,7 +262,7 @@
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
-   "matchEnded": false
+   "matchEnded": true
   },
   "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc": {
    "id": "7842c1c6-cf1d-4a79-8063-27df6a6ddfdc",
@@ -213,6 +301,51 @@
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": true,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": true,
+   "matchEnded": true
+  },
+  "0c634572-f50a-4265-bc9d-8ef5fea964d6": {
+   "id": "0c634572-f50a-4265-bc9d-8ef5fea964d6",
+   "name": "Indonesia Women vs Malaysia Women, Final, Malaysia Womens T20I Tri-Series, 2026",
+   "matchType": "t20",
+   "status": "Indonesia Women won by 8 wkts - 13 overs game due to rain",
+   "venue": "Bayuemas Oval, Kuala Lumpur",
+   "date": "2026-11-27",
+   "dateTimeGMT": "2026-11-27T02:00:00",
+   "teams": [
+    "Indonesia Women",
+    "Malaysia Women"
+   ],
+   "teamInfo": [
+    {
+     "name": "Indonesia Women",
+     "shortname": "INA-W",
+     "img": "https://g.cricapi.com/iapi/2874-638040163945402807.webp?w=48"
+    },
+    {
+     "name": "Malaysia Women",
+     "shortname": "ML-W",
+     "img": "https://g.cricapi.com/iapi/1551-637926306213013515.webp?w=48"
+    }
+   ],
+   "score": [
+    {
+     "r": 67,
+     "w": 6,
+     "o": 13,
+     "inning": "Malaysia Women Inning 1"
+    },
+    {
+     "r": 68,
+     "w": 2,
+     "o": 10.3,
+     "inning": "Indonesia Women Inning 1"
+    }
+   ],
+   "series_id": "91f85089-04b9-4c17-8825-f8eabf2ee8be",
    "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
@@ -268,7 +401,7 @@
    "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
    "name": "Sri Lanka A vs India A, 1st Semi-Final (A1 v B2), ACC Mens Asia Cup Rising Stars 2026",
    "matchType": "odi",
-   "status": "India A opt to bat",
+   "status": "Sri Lanka A won by 8 wkts",
    "venue": "West End Park International Cricket Stadium, Doha",
    "date": "2026-11-26",
    "dateTimeGMT": "2026-11-26T10:00:00",
@@ -290,10 +423,16 @@
    ],
    "score": [
     {
-     "r": 128,
-     "w": 1,
-     "o": 16,
+     "r": 317,
+     "w": 8,
+     "o": 50,
      "inning": "india a Inning 1"
+    },
+    {
+     "r": 318,
+     "w": 2,
+     "o": 41.3,
+     "inning": "Sri Lanka A,India A Inning 1"
     }
    ],
    "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
@@ -301,7 +440,7 @@
    "bbbEnabled": false,
    "hasSquad": true,
    "matchStarted": true,
-   "matchEnded": false
+   "matchEnded": true
   },
   "3d6289f5-71db-4917-8de3-9872ba0437e9": {
    "id": "3d6289f5-71db-4917-8de3-9872ba0437e9",
@@ -564,141 +703,6 @@
      "w": 4,
      "o": 16.2,
      "inning": "Indonesia Women Inning 1"
-    }
-   ],
-   "series_id": "91f85089-04b9-4c17-8825-f8eabf2ee8be",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
-  },
-  "41baa734-f7a7-4dcf-95c0-544026630c44": {
-   "id": "41baa734-f7a7-4dcf-95c0-544026630c44",
-   "name": "India A vs Pakistan A, 8th Match, Group B, ACC Mens Asia Cup Rising Stars 2026",
-   "matchType": "odi",
-   "status": "Pakistan A won by 48 runs",
-   "venue": "West End Park International Cricket Stadium, Doha",
-   "date": "2026-11-22",
-   "dateTimeGMT": "2026-11-22T10:00:00",
-   "teams": [
-    "India A",
-    "Pakistan A"
-   ],
-   "teamInfo": [
-    {
-     "name": "India A",
-     "shortname": "INA",
-     "img": "https://g.cricapi.com/iapi/2206-637976248888288069.webp?w=48"
-    },
-    {
-     "name": "Pakistan A",
-     "shortname": "PKA",
-     "img": "https://g.cricapi.com/iapi/67-637877074931980375.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 313,
-     "w": 10,
-     "o": 49.2,
-     "inning": "pakistan a Inning 1"
-    },
-    {
-     "r": 265,
-     "w": 10,
-     "o": 49.1,
-     "inning": "India A,Pakistan A Inning 1"
-    }
-   ],
-   "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": true,
-   "matchStarted": true,
-   "matchEnded": true
-  },
-  "fbb92c7e-d888-454b-9f21-cff468b527ea": {
-   "id": "fbb92c7e-d888-454b-9f21-cff468b527ea",
-   "name": "United Arab Emirates vs Nepal, 7th Match, Group B, ACC Mens Asia Cup Rising Stars 2026",
-   "matchType": "odi",
-   "status": "Nepal won by 6 wkts",
-   "venue": "University of Doha for Science and Technology, Doha",
-   "date": "2026-11-22",
-   "dateTimeGMT": "2026-11-22T06:00:00",
-   "teams": [
-    "United Arab Emirates",
-    "Nepal"
-   ],
-   "teamInfo": [
-    {
-     "name": "Nepal",
-     "shortname": "NEP",
-     "img": "https://g.cricapi.com/iapi/54-637877084789981539.webp?w=48"
-    },
-    {
-     "name": "United Arab Emirates",
-     "shortname": "UAE",
-     "img": "https://g.cricapi.com/iapi/92-637877081068315608.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 122,
-     "w": 10,
-     "o": 39.5,
-     "inning": "United Arab Emirates Inning 1"
-    },
-    {
-     "r": 123,
-     "w": 4,
-     "o": 22,
-     "inning": "Nepal Inning 1"
-    }
-   ],
-   "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": true,
-   "matchStarted": true,
-   "matchEnded": true
-  },
-  "8e97677f-1eae-440e-bb87-d0c6153c4c84": {
-   "id": "8e97677f-1eae-440e-bb87-d0c6153c4c84",
-   "name": "Malaysia Women vs China Women, 3rd Match, Malaysia Womens T20I Tri-Series, 2026",
-   "matchType": "t20",
-   "status": "Malaysia Women won by 6 wkts",
-   "venue": "Bayuemas Oval, Kuala Lumpur",
-   "date": "2026-11-22",
-   "dateTimeGMT": "2026-11-22T02:00:00",
-   "teams": [
-    "Malaysia Women",
-    "China Women"
-   ],
-   "teamInfo": [
-    {
-     "name": "China Women",
-     "shortname": "CHW",
-     "img": "https://g.cricapi.com/iapi/595-637928918571134357.png?w=48"
-    },
-    {
-     "name": "Malaysia Women",
-     "shortname": "ML-W",
-     "img": "https://g.cricapi.com/iapi/1551-637926306213013515.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 115,
-     "w": 7,
-     "o": 20,
-     "inning": "China Women Inning 1"
-    },
-    {
-     "r": 116,
-     "w": 4,
-     "o": 18.2,
-     "inning": "Malaysia Women Inning 1"
     }
    ],
    "series_id": "91f85089-04b9-4c17-8825-f8eabf2ee8be",
@@ -1197,50 +1201,45 @@
    "matchStarted": true,
    "matchEnded": false
   },
-  "a1b375bd-c1c7-42ae-b10a-d67a7b727e87": {
-   "id": "a1b375bd-c1c7-42ae-b10a-d67a7b727e87",
-   "name": "South Africa vs Bangladesh, 2nd Test, Bangladesh tour of South Africa, 2026",
-   "status": "South Africa won by an innings and 219 runs",
-   "venue": "SuperSport Park, Centurion",
-   "date": "2026-11-23",
-   "dateTimeGMT": "2026-11-23T08:00:00",
+  "4830a892-257d-42e7-9921-6ab81b5fe5c6": {
+   "id": "4830a892-257d-42e7-9921-6ab81b5fe5c6",
+   "name": "India Women U19 vs England Women U19, 1st unofficial T20I, England Women U19 tour of India 2026",
+   "matchType": "t20",
+   "status": "India Women U19 won by 36 runs",
+   "venue": "BCA Stadium, Kotambi, Vadodara",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T12:30:00",
    "teams": [
-    "South Africa",
-    "Bangladesh"
+    "India Women U19",
+    "England Women U19"
    ],
    "teamInfo": [
     {
-     "name": "Bangladesh",
-     "shortname": "BAN",
-     "img": "https://g.cricapi.com/iapi/9-637877074109248302.webp?w=48"
+     "name": "England Women U19",
+     "shortname": "ENGW",
+     "img": "https://g.cricapi.com/iapi/4213-638101638135932984.webp?w=48"
     },
     {
-     "name": "South Africa",
-     "shortname": "RSA",
-     "img": "https://g.cricapi.com/iapi/82-637877071839088912.webp?w=48"
+     "name": "India Women U19",
+     "shortname": "IND W-U19",
+     "img": "https://g.cricapi.com/iapi/3831-638101641377822973.webp?w=48"
     }
    ],
    "score": [
     {
-     "r": 91,
-     "w": 10,
-     "o": 33.3,
-     "inning": "Bangladesh Inning 1"
+     "r": 197,
+     "w": 5,
+     "o": 20,
+     "inning": "india women u19 Inning 1"
     },
     {
-     "r": 494,
-     "w": 7,
-     "o": 115,
-     "inning": "South Africa Inning 1"
-    },
-    {
-     "r": 184,
+     "r": 161,
      "w": 10,
-     "o": 49.4,
-     "inning": "Bangladesh Inning 2"
+     "o": 19,
+     "inning": "India Women U19,England Women U19 Inning 1"
     }
    ],
-   "series_id": "7acadb0c-bc4e-4c91-8c47-7bbe53f2227b",
+   "series_id": "e52665ad-f801-47a8-85f7-b4fe9fdefdb5",
    "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
