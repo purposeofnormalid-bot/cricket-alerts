@@ -4,7 +4,8 @@
   "115b6095-9d3b-4d4f-a006-cfa1de176353": [
    "toss",
    "prematch",
-   "6ov"
+   "6ov",
+   "10ov"
   ],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [
    "toss",
@@ -29,24 +30,24 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 51,
+   "r": 53,
    "w": 3,
    "inn": 2,
    "st": "",
-   "ts": "2026-11-27T10:50:21.661105+00:00"
+   "ts": "2026-11-27T10:55:27.959515+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 70,
+   "r": 73,
    "w": 4,
    "inn": 1,
-   "st": "",
-   "ts": "2026-11-27T10:50:21.661105+00:00"
+   "st": "hobart hurricanes women opt to bowl",
+   "ts": "2026-11-27T10:55:27.959515+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T10:45:24.253420+00:00",
-  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T10:40:19.855227+00:00"
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T10:55:27.959515+00:00"
  },
  "ended": {},
  "results": {
@@ -307,7 +308,7 @@
    "id": "edf5ff2c-ce8a-45d5-a1ce-ae874af05073",
    "name": "Chandigarh Royal Strikers vs Andhra Warriors, 6th Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Andhra Warriors need 59 runs in 46 balls",
+   "status": "Andhra Warriors need 45 runs in 35 balls",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T09:30:00",
@@ -333,9 +334,9 @@
      "inning": "Chandigarh Royal Strikers Inning 1"
     },
     {
-     "r": 4,
-     "w": 1,
-     "o": 1.2,
+     "r": 18,
+     "w": 2,
+     "o": 3.1,
      "inning": "Andhra Warriors Inning 1"
     }
    ],
@@ -634,9 +635,9 @@
    ],
    "score": [
     {
-     "r": 30,
+     "r": 33,
      "w": 2,
-     "o": 8.5,
+     "o": 11,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1413,7 +1414,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T10:45:24.253420+00:00",
+ "live_ts": "2026-11-27T10:55:27.959515+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
