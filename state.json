@@ -21,11 +21,11 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 37,
+   "r": 48,
    "w": 1,
    "inn": 1,
-   "st": "england opt to bowl",
-   "ts": "2026-11-27T08:34:48.055749+00:00"
+   "st": "",
+   "ts": "2026-11-27T08:35:47.122127+00:00"
   }
  },
  "mom_meta": {},
@@ -176,6 +176,8 @@
   "4ae1d337-a9fb-4791-8e10-e3f8f802d218": "Sri Lanka Women won by 9 wkts",
   "b61c3067-ac06-4ade-aaaf-dc0b705174e0": "Netherlands Women won by 7 wkts"
  },
+ "ended": {},
+ "results": {},
  "series_ids": [
   [
    "03ae5892-ea9f-4662-95f4-879d04dd2399",
@@ -285,7 +287,7 @@
    "start": "2026-11-28T14:30:00+00:00"
   }
  ],
- "matches_ts": "2026-11-27T08:34:48.055749+00:00",
+ "matches_ts": "2026-11-27T04:35:17.487786+00:00",
  "live_cache": {
   "03e96f7c-b12c-4fee-b32d-f385ab68e572": {
    "id": "03e96f7c-b12c-4fee-b32d-f385ab68e572",
@@ -1399,7 +1401,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T08:34:48.055749+00:00",
+ "live_ts": "2026-11-27T08:30:26.967266+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
