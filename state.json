@@ -3,7 +3,8 @@
  "sent": {
   "115b6095-9d3b-4d4f-a006-cfa1de176353": [],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [
-   "toss"
+   "toss",
+   "prematch"
   ],
   "549a8787-9383-4e56-8b50-70fe4c91fcb6": [],
   "c81e7d49-463b-478a-bc28-06608c6466d2": [],
@@ -15,11 +16,13 @@
  "odds": {},
  "open": {},
  "pretoss_odds": {},
- "toss_info": {},
+ "toss_info": {
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "england won toss & elected to bowl"
+ },
  "snap": {},
  "mom_meta": {},
  "poll_ts": {
-  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T07:40:23.144735+00:00"
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T07:50:29.276050+00:00"
  },
  "series_ids": [
   [
@@ -133,7 +136,7 @@
  "matches_ts": "2026-11-27T04:35:17.487786+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
- "live_ts": "2026-11-27T07:40:23.144735+00:00",
+ "live_ts": "2026-11-27T07:50:29.276050+00:00",
  "live_cache": {
   "03e96f7c-b12c-4fee-b32d-f385ab68e572": {
    "id": "03e96f7c-b12c-4fee-b32d-f385ab68e572",
