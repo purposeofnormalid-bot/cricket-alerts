@@ -41,11 +41,11 @@
    "ts": "2026-11-27T11:50:21.709262+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 57,
+   "r": 75,
    "w": 3,
    "inn": 2,
    "st": "",
-   "ts": "2026-11-27T12:35:18.933681+00:00"
+   "ts": "2026-11-27T12:40:25.474699+00:00"
   }
  },
  "mom_meta": {},
@@ -316,7 +316,7 @@
    "id": "ba2d551c-6403-4a69-acfe-572a432ac931",
    "name": "JK Northern Warriors vs Telangana Singhams, 7th Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Innings Break",
+   "status": "Telangana Singhams need 79 runs in 47 balls",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T11:30:00",
@@ -340,6 +340,12 @@
      "w": 6,
      "o": 9,
      "inning": "jk northern warriors Inning 1"
+    },
+    {
+     "r": 6,
+     "w": 2,
+     "o": 1.1,
+     "inning": "JK Northern Warriors,Telangana Singhams Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
@@ -701,7 +707,7 @@
    "id": "52e54477-0f42-4b04-8ae2-63851f0b1ef1",
    "name": "Pakistan A vs Bangladesh A, 2nd Semi-Final (B1 v A2), ACC Mens Asia Cup Rising Stars 2026",
    "matchType": "odi",
-   "status": "Bangladesh A opt to bat",
+   "status": "",
    "venue": "West End Park International Cricket Stadium, Doha",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T10:00:00",
@@ -723,9 +729,9 @@
    ],
    "score": [
     {
-     "r": 123,
+     "r": 136,
      "w": 5,
-     "o": 32,
+     "o": 35,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1412,7 +1418,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T12:30:29.049736+00:00",
+ "live_ts": "2026-11-27T12:40:25.474699+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
