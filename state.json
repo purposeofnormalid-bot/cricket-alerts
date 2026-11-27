@@ -28,11 +28,11 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 108,
-   "w": 10,
-   "inn": 1,
-   "st": "innings break",
-   "ts": "2026-11-27T10:00:32.183469+00:00"
+   "r": 10,
+   "w": 0,
+   "inn": 2,
+   "st": "",
+   "ts": "2026-11-27T10:05:19.190510+00:00"
   }
  },
  "mom_meta": {},
@@ -319,9 +319,9 @@
    ],
    "score": [
     {
-     "r": 15,
-     "w": 5,
-     "o": 4,
+     "r": 23,
+     "w": 6,
+     "o": 5.2,
      "inning": "Chandigarh Royal Strikers Inning 1"
     }
    ],
@@ -618,11 +618,19 @@
      "img": "https://g.cricapi.com/iapi/67-637877074931980375.webp?w=48"
     }
    ],
+   "score": [
+    {
+     "r": 7,
+     "w": 0,
+     "o": 0.5,
+     "inning": "bangladesh a Inning 1"
+    }
+   ],
    "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
-   "fantasyEnabled": false,
+   "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": true,
-   "matchStarted": false,
+   "matchStarted": true,
    "matchEnded": false
   },
   "39dd6c08-96af-4a2d-9db6-b193a04c8787": {
@@ -1391,7 +1399,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T10:00:32.183469+00:00",
+ "live_ts": "2026-11-27T10:05:19.190510+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
