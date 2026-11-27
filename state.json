@@ -2,7 +2,8 @@
  "v": 18,
  "sent": {
   "115b6095-9d3b-4d4f-a006-cfa1de176353": [
-   "toss"
+   "toss",
+   "prematch"
   ],
   "c308d96d-b24e-4353-9afe-69972a6598ec": [
    "toss",
@@ -22,21 +23,22 @@
  "open": {},
  "pretoss_odds": {},
  "toss_info": {
-  "c308d96d-b24e-4353-9afe-69972a6598ec": "england won toss & elected to bowl"
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "england won toss & elected to bowl",
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": "hobart hurricanes women won toss & elected to bowl"
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
    "r": 108,
    "w": 10,
    "inn": 1,
-   "st": "innings break",
-   "ts": "2026-11-27T09:45:21.877590+00:00"
+   "st": "",
+   "ts": "2026-11-27T09:50:20.825889+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T09:45:21.877590+00:00",
-  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T09:45:21.877590+00:00"
+  "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T09:50:20.825889+00:00"
  },
  "ended": {},
  "results": {
@@ -317,14 +319,14 @@
    ],
    "score": [
     {
-     "r": 7,
-     "w": 2,
-     "o": 1.4,
+     "r": 10,
+     "w": 3,
+     "o": 2.4,
      "inning": "Chandigarh Royal Strikers Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
-   "fantasyEnabled": false,
+   "fantasyEnabled": true,
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
@@ -1389,7 +1391,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T09:45:21.877590+00:00",
+ "live_ts": "2026-11-27T09:50:20.825889+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
