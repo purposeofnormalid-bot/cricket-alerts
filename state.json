@@ -31,18 +31,18 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 53,
+   "r": 93,
    "w": 3,
    "inn": 2,
-   "st": "rain stops play - england need 56 runs in 84 balls",
-   "ts": "2026-11-27T11:45:23.968441+00:00"
+   "st": "",
+   "ts": "2026-11-27T11:50:21.709262+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 73,
-   "w": 4,
-   "inn": 1,
-   "st": "hobart hurricanes women opt to bowl",
-   "ts": "2026-11-27T11:45:23.968441+00:00"
+   "r": 5,
+   "w": 0,
+   "inn": 2,
+   "st": "",
+   "ts": "2026-11-27T11:50:21.709262+00:00"
   }
  },
  "mom_meta": {},
@@ -50,7 +50,9 @@
   "c308d96d-b24e-4353-9afe-69972a6598ec": "2026-11-27T11:45:23.968441+00:00",
   "115b6095-9d3b-4d4f-a006-cfa1de176353": "2026-11-27T11:45:23.968441+00:00"
  },
- "ended": {},
+ "ended": {
+  "c308d96d-b24e-4353-9afe-69972a6598ec": true
+ },
  "results": {
   "03e96f7c-b12c-4fee-b32d-f385ab68e572": "UP Kings won by 50 runs",
   "2abf13c7-c314-4313-be7c-d99ad98d4aef": "Haryana Phoenix won by 39 runs",
@@ -192,7 +194,9 @@
   "cb06e950-be06-4f3d-88aa-ab9c370ee50b": "Haryana won by 66 runs",
   "ba15b126-aca3-425f-94c9-37e5baa29e8f": "Baroda won by 5 wkts",
   "2c05b44d-8628-4589-b57d-1994393ed128": "Match abandoned due to rain (no toss)",
-  "13fd81ef-3627-466c-b69d-2feeb11134a2": "Sikkim won by 9 runs (VJD Method)"
+  "13fd81ef-3627-466c-b69d-2feeb11134a2": "Sikkim won by 9 runs (VJD Method)",
+  "edf5ff2c-ce8a-45d5-a1ce-ae874af05073": "Andhra Warriors won by 7 wkts",
+  "c308d96d-b24e-4353-9afe-69972a6598ec": "England won by 7 wkts (2nd Innings reduced to 16 Overs, DLS Target 93)"
  },
  "series_ids": [
   [
@@ -305,11 +309,44 @@
  ],
  "matches_ts": "2026-11-27T09:35:24.431377+00:00",
  "live_cache": {
+  "ba2d551c-6403-4a69-acfe-572a432ac931": {
+   "id": "ba2d551c-6403-4a69-acfe-572a432ac931",
+   "name": "JK Northern Warriors vs Telangana Singhams, 7th Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "JK Northern Warriors opt to bat",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-27",
+   "dateTimeGMT": "2026-11-27T11:30:00",
+   "teams": [
+    "JK Northern Warriors",
+    "Telangana Singhams"
+   ],
+   "teamInfo": [
+    {
+     "name": "Telangana Singhams",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    }
+   ],
+   "score": [
+    {
+     "r": 27,
+     "w": 3,
+     "o": 3.1,
+     "inning": "jk northern warriors Inning 1"
+    }
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": false,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": true,
+   "matchEnded": false
+  },
   "edf5ff2c-ce8a-45d5-a1ce-ae874af05073": {
    "id": "edf5ff2c-ce8a-45d5-a1ce-ae874af05073",
    "name": "Chandigarh Royal Strikers vs Andhra Warriors, 6th Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "Andhra Warriors need 45 runs in 35 balls",
+   "status": "Andhra Warriors won by 7 wkts",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T09:30:00",
@@ -335,9 +372,9 @@
      "inning": "Chandigarh Royal Strikers Inning 1"
     },
     {
-     "r": 18,
-     "w": 2,
-     "o": 3.1,
+     "r": 63,
+     "w": 3,
+     "o": 6.5,
      "inning": "Andhra Warriors Inning 1"
     }
    ],
@@ -346,7 +383,7 @@
    "bbbEnabled": false,
    "hasSquad": false,
    "matchStarted": true,
-   "matchEnded": false
+   "matchEnded": true
   },
   "03e96f7c-b12c-4fee-b32d-f385ab68e572": {
    "id": "03e96f7c-b12c-4fee-b32d-f385ab68e572",
@@ -636,9 +673,9 @@
    ],
    "score": [
     {
-     "r": 33,
+     "r": 89,
      "w": 2,
-     "o": 11,
+     "o": 22.4,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1368,54 +1405,9 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
-  },
-  "b61c3067-ac06-4ade-aaaf-dc0b705174e0": {
-   "id": "b61c3067-ac06-4ade-aaaf-dc0b705174e0",
-   "name": "Scotland Women vs Netherlands Women, 21st Match, Super Six (A2 v B2), ICC Womens Emerging Nations Trophy, 2026",
-   "matchType": "t20",
-   "status": "Netherlands Women won by 7 wkts",
-   "venue": "Karwan Cricket Ground, Ajman",
-   "date": "2026-11-20",
-   "dateTimeGMT": "2026-11-20T05:00:00",
-   "teams": [
-    "Scotland Women",
-    "Netherlands Women"
-   ],
-   "teamInfo": [
-    {
-     "name": "Netherlands Women",
-     "shortname": "NET-W",
-     "img": "https://g.cricapi.com/iapi/1639-637926301346986959.webp?w=48"
-    },
-    {
-     "name": "Scotland Women",
-     "shortname": "SCOW",
-     "img": "https://g.cricapi.com/iapi/2216-637981637047617665.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 154,
-     "w": 7,
-     "o": 20,
-     "inning": "Scotland Women Inning 1"
-    },
-    {
-     "r": 155,
-     "w": 3,
-     "o": 19.4,
-     "inning": "Netherlands Women Inning 1"
-    }
-   ],
-   "series_id": "267a5b0d-370a-4955-8016-17b8790cc33f",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T11:45:23.968441+00:00",
+ "live_ts": "2026-11-27T11:50:21.709262+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
