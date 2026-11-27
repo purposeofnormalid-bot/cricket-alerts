@@ -40,11 +40,11 @@
    "ts": "2026-11-27T11:50:21.709262+00:00"
   },
   "115b6095-9d3b-4d4f-a006-cfa1de176353": {
-   "r": 30,
-   "w": 2,
+   "r": 43,
+   "w": 3,
    "inn": 2,
-   "st": "hobart hurricanes women need 138 runs in 87 balls",
-   "ts": "2026-11-27T12:15:22.423824+00:00"
+   "st": "",
+   "ts": "2026-11-27T12:20:22.194413+00:00"
   }
  },
  "mom_meta": {},
@@ -315,7 +315,7 @@
    "id": "ba2d551c-6403-4a69-acfe-572a432ac931",
    "name": "JK Northern Warriors vs Telangana Singhams, 7th Match, Group B, Indian Softball Cricket League 2026",
    "matchType": "t20",
-   "status": "JK Northern Warriors opt to bat",
+   "status": "Innings Break",
    "venue": "Acharya Stadium, Bengaluru",
    "date": "2026-11-27",
    "dateTimeGMT": "2026-11-27T11:30:00",
@@ -335,9 +335,9 @@
    ],
    "score": [
     {
-     "r": 73,
-     "w": 4,
-     "o": 7.5,
+     "r": 84,
+     "w": 6,
+     "o": 9,
      "inning": "jk northern warriors Inning 1"
     }
    ],
@@ -425,6 +425,49 @@
      "w": 8,
      "o": 9,
      "inning": "Andaman Admirals,UP Kings Inning 1"
+    }
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": true,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": true,
+   "matchEnded": true
+  },
+  "1f5bec9f-567f-430b-886d-05f1bad06179": {
+   "id": "1f5bec9f-567f-430b-886d-05f1bad06179",
+   "name": "JK Northern Warriors vs Chandigarh Royal Strikers, 4th Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "Chandigarh Royal Strikers won by 19 runs",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-26",
+   "dateTimeGMT": "2026-11-26T13:30:00",
+   "teams": [
+    "JK Northern Warriors",
+    "Chandigarh Royal Strikers"
+   ],
+   "teamInfo": [
+    {
+     "name": "Chandigarh Royal Strikers",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    },
+    {
+     "name": "JK Northern Warriors",
+     "img": "https://h.cricapi.com/img/icon512.png"
+    }
+   ],
+   "score": [
+    {
+     "r": 105,
+     "w": 5,
+     "o": 9,
+     "inning": "Chandigarh Royal Strikers Inning 1"
+    },
+    {
+     "r": 86,
+     "w": 8,
+     "o": 9,
+     "inning": "JK Northern Warriors Inning 1"
     }
    ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
@@ -679,9 +722,9 @@
    ],
    "score": [
     {
-     "r": 114,
+     "r": 118,
      "w": 3,
-     "o": 27.3,
+     "o": 29.1,
      "inning": "bangladesh a Inning 1"
     }
    ],
@@ -1366,54 +1409,9 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
-  },
-  "4ae1d337-a9fb-4791-8e10-e3f8f802d218": {
-   "id": "4ae1d337-a9fb-4791-8e10-e3f8f802d218",
-   "name": "Sri Lanka Women vs Zimbabwe Women, 22nd Match, Super Six (A1 v B3), ICC Womens Emerging Nations Trophy, 2026",
-   "matchType": "t20",
-   "status": "Sri Lanka Women won by 9 wkts",
-   "venue": "Seven Districts Ground, Ajman",
-   "date": "2026-11-20",
-   "dateTimeGMT": "2026-11-20T05:00:00",
-   "teams": [
-    "Sri Lanka Women",
-    "Zimbabwe Women"
-   ],
-   "teamInfo": [
-    {
-     "name": "Sri Lanka Women",
-     "shortname": "SLW",
-     "img": "https://g.cricapi.com/iapi/4191-638101639309122979.webp?w=48"
-    },
-    {
-     "name": "Zimbabwe Women",
-     "shortname": "ZIMW",
-     "img": "https://g.cricapi.com/iapi/1141-637877080090615236.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 68,
-     "w": 10,
-     "o": 19.1,
-     "inning": "zimbabwe women Inning 1"
-    },
-    {
-     "r": 69,
-     "w": 1,
-     "o": 11.3,
-     "inning": "Sri Lanka Women,Zimbabwe Women Inning 1"
-    }
-   ],
-   "series_id": "267a5b0d-370a-4955-8016-17b8790cc33f",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
   }
  },
- "live_ts": "2026-11-27T12:10:21.003953+00:00",
+ "live_ts": "2026-11-27T12:20:22.194413+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
