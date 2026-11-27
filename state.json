@@ -25,11 +25,11 @@
  },
  "snap": {
   "c308d96d-b24e-4353-9afe-69972a6598ec": {
-   "r": 101,
-   "w": 7,
+   "r": 108,
+   "w": 10,
    "inn": 1,
-   "st": "england opt to bowl",
-   "ts": "2026-11-27T09:35:24.431377+00:00"
+   "st": "",
+   "ts": "2026-11-27T09:40:22.677496+00:00"
   }
  },
  "mom_meta": {},
@@ -314,6 +314,14 @@
      "img": "https://h.cricapi.com/img/icon512.png"
     }
    ],
+   "score": [
+    {
+     "r": 3,
+     "w": 1,
+     "o": 0.5,
+     "inning": "Chandigarh Royal Strikers Inning 1"
+    }
+   ],
    "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
    "fantasyEnabled": false,
    "bbbEnabled": false,
@@ -582,6 +590,37 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
+  },
+  "52e54477-0f42-4b04-8ae2-63851f0b1ef1": {
+   "id": "52e54477-0f42-4b04-8ae2-63851f0b1ef1",
+   "name": "Pakistan A vs Bangladesh A, 2nd Semi-Final (B1 v A2), ACC Mens Asia Cup Rising Stars 2026",
+   "matchType": "odi",
+   "status": "Match starts at Nov 27, 10:00 GMT",
+   "venue": "West End Park International Cricket Stadium, Doha",
+   "date": "2026-11-27",
+   "dateTimeGMT": "2026-11-27T10:00:00",
+   "teams": [
+    "Pakistan A",
+    "Bangladesh A"
+   ],
+   "teamInfo": [
+    {
+     "name": "Bangladesh A",
+     "shortname": "BNA",
+     "img": "https://g.cricapi.com/iapi/10-637877074628008258.webp?w=48"
+    },
+    {
+     "name": "Pakistan A",
+     "shortname": "PKA",
+     "img": "https://g.cricapi.com/iapi/67-637877074931980375.webp?w=48"
+    }
+   ],
+   "series_id": "fe4c9986-8622-4938-8f19-d5db8cbc43e2",
+   "fantasyEnabled": false,
+   "bbbEnabled": false,
+   "hasSquad": true,
+   "matchStarted": false,
+   "matchEnded": false
   },
   "39dd6c08-96af-4a2d-9db6-b193a04c8787": {
    "id": "39dd6c08-96af-4a2d-9db6-b193a04c8787",
@@ -1347,48 +1386,9 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
-  },
-  "3aaad226-9e10-423d-a23b-c0ee8310372c": {
-   "id": "3aaad226-9e10-423d-a23b-c0ee8310372c",
-   "name": "Uganda Women vs Rwanda Women, 4th Match, Womens Victoria T20I Series, 2026",
-   "matchType": "t20",
-   "status": "Uganda Women opt to bat",
-   "venue": "Entebbe Cricket Oval, Entebbe",
-   "date": "2026-11-07",
-   "dateTimeGMT": "2026-11-07T00:00:00",
-   "teams": [
-    "Uganda Women",
-    "Rwanda Women"
-   ],
-   "teamInfo": [
-    {
-     "name": "Rwanda Women",
-     "shortname": "RW",
-     "img": "https://g.cricapi.com/iapi/4218-638101636238742992.webp?w=48"
-    },
-    {
-     "name": "Uganda Women",
-     "shortname": "UGAW",
-     "img": "https://g.cricapi.com/iapi/1135-637877086844153505.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 90,
-     "w": 5,
-     "o": 18.4,
-     "inning": "uganda women Inning 1"
-    }
-   ],
-   "series_id": "6e1cdeda-f551-467c-a8d6-c66f14bf170b",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": false
   }
  },
- "live_ts": "2026-11-27T09:35:24.431377+00:00",
+ "live_ts": "2026-11-27T09:40:22.677496+00:00",
  "schedule_date": "2026-11-27",
  "schedule_count": 3,
  "paper_picks": {},
