@@ -1,40 +1,52 @@
-import os, json, re, html, math
+import os
+import re
+import json
+import html
+import math
+import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
-import requests
 
-TG_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-TG_CHAT = os.environ["TELEGRAM_CHAT_ID"]
-CRIC = os.environ["CRICAPI_KEY"]
-ODDS = os.environ["ODDS_API_KEY"]
-GEM = os.environ["GEMINI_API_KEY"]
-PRIMARY_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
-FALLBACK_MODEL = "gemini-3.5-flash-lite"
-
-INCLUDE_WOMEN = True
-SILENT_SNIPER_ONLY = True      # True = শুধু A+ Sniper/Hedge/Scorecard; False = নরমাল কার্ডও চলবে
-SNIPER_EDGE_POST_TOSS = 5.5    # পোস্ট-টস কনফার্মড স্নাইপার মিনিমাম গ্যাপ (%)
-SNIPER_EDGE_BREAK = 6.0        # ১ম ইনিংস ব্রেক স্নাইপার মিনিমাম গ্যাপ (%)
-SNIPER_EDGE_CHASE = 7.0        # ২য় ইনিংস ১০-ওভার স্নাইপার মিনিমাম গ্যাপ (%)
-
-STATE_FILE = "state.json"
-STATE_VERSION = 18
+# ==========================================
+# 1. CONFIGURATION & API KEYS (v22)
+# ==========================================
+ENGINE_VERSION = "v22"
 BDT = timezone(timedelta(hours=6))
-NOW = datetime.now(timezone.utc)
+STATE_FILE = "state.json"
 
-FULL = {
+CRICAPI_KEY = os.getenv("CRICAPI_KEY") or os.getenv("CRICKET_API_KEY", "")
+ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_ENV_MODEL = os.getenv("GEMINI_MODEL", "").strip()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID", "")
+
+IS_MANUAL_RUN = os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch"
+
+ALLOWED_FORMATS = ("t20", "odi", "t20i")
+WOMENS_KEYWORDS = ("women", "womens", "women's", "wbbl", "wbpl", "wpl", "fairbreak", "-w ", "(w)")
+BAD_KEYWORDS = (
+    "u19", "under-19", "under 19", "emerging", "development",
+    "academy", "softball", "rising stars", "t10", "ecs ", "italia"
+)
+DELAY_KEYWORDS = (
+    "delay", "rain", "wet", "damp", "inspection", "bad light",
+    "interrupt", "postpon", "drizzle", "shower", "covers", "delayed start"
+)
+
+FULL_NATIONS = {
     "india", "australia", "england", "pakistan", "south africa",
     "new zealand", "sri lanka", "bangladesh", "west indies",
     "afghanistan", "zimbabwe", "ireland"
 }
-LEAGUE_RE = re.compile(
-    r"\b(ipl|indian premier league|big bash|bbl|wbbl|womens big bash|women's big bash|"
-    r"bpl|bangladesh premier|psl|pakistan super league|sa20|ilt20|"
-    r"international league t20|cpl|caribbean premier|the hundred|"
-    r"major league cricket|mlc|wpl|womens premier league|women's premier league|"
+MAJOR_LEAGUE_RE = re.compile(
+    r"\b(ipl|indian premier league|big bash|bbl|wbbl|women'?s big bash|womens big bash|"
+    r"bpl|wbpl|bangladesh premier|psl|pakistan super league|sa20|ilt20|"
+    r"international league t20|cpl|caribbean premier|the hundred|super smash|"
+    r"major league cricket|mlc|wpl|women'?s premier league|womens premier league|"
     r"icc|acc|asia cup|world cup|champions trophy)\b"
 )
-FRANCHISE = [
+MAJOR_FRANCHISES = (
     "super kings", "mumbai indians", "royal challengers", "knight riders",
     "sunrisers", "super giants", "punjab kings", "gujarat titans",
     "rajasthan royals", "delhi capitals", "lucknow", "sydney sixers",
@@ -47,1424 +59,1494 @@ FRANCHISE = [
     "abu dhabi knight riders", "paarl royals", "joburg super kings", "durban",
     "pretoria capitals", "mi cape town", "sunrisers eastern cape",
     "up warriorz", "gujarat giants"
-]
-BAD_ALWAYS = ("u19", "under-19", "under 19", "emerging", "development", "academy", "softball", "rising stars")
-WOMEN = ("women", "wbbl", "wpl", "-w ", " w vs", "(w)")
-SERIES_KEYWORDS = [
-    "ILT20", "International League T20", "Womens Big Bash", "Big Bash",
-    "Indian Premier League", "Womens Premier League", "Bangladesh Premier",
-    "Pakistan Super League", "SA20", "Caribbean Premier", "The Hundred", "Major League Cricket"
-]
-YEARS = ("2026", "2027")
+)
+CITY_WORDS = {
+    "melbourne", "sydney", "adelaide", "perth", "brisbane", "hobart",
+    "dubai", "sharjah", "abu", "dhabi", "mumbai", "delhi", "kolkata",
+    "chennai", "punjab", "gujarat", "lucknow", "rajasthan", "lahore",
+    "karachi", "islamabad", "peshawar", "multan", "quetta", "dhaka",
+    "chattogram", "sylhet", "rangpur", "khulna", "barishal", "comilla",
+    "cape", "town", "durban", "pretoria", "paarl", "joburg",
+    "new", "south", "west", "sri", "northern", "central"
+}
 DLS_W = [1.00, 0.96, 0.91, 0.84, 0.75, 0.63, 0.49, 0.34, 0.20, 0.08, 0.0]
-esc = html.escape
-API_DIAG = {"hits": "?", "limit": "?", "reason": ""}
+
+API_INFO = {"hits": None, "limit": 100, "error": ""}
 
 
+# ==========================================
+# 2. STATE MANAGEMENT & HARD CREDIT CAP
+# ==========================================
 def load_state():
-    try:
-        with open(STATE_FILE, encoding="utf-8") as f:
-            s = json.load(f)
-    except Exception:
-        s = {}
-    out = {
-        "v": STATE_VERSION,
-        "sent": s.get("sent", {}),
-        "odds": s.get("odds", {}),
-        "open": s.get("open", {}),
-        "pretoss_odds": s.get("pretoss_odds", {}),
-        "toss_info": s.get("toss_info", {}),
-        "snap": s.get("snap", {}),
-        "mom_meta": s.get("mom_meta", {}),
-        "poll_ts": s.get("poll_ts", {}),
-        "ended": s.get("ended", {}),
-        "results": s.get("results", {}),
-        "series_ids": s.get("series_ids", []),
-        "series_ts": s.get("series_ts"),
-        "matches": s.get("matches", []),
-        "matches_ts": s.get("matches_ts"),
-        "live_cache": s.get("live_cache", {}),
-        "live_ts": s.get("live_ts"),
-        "schedule_date": s.get("schedule_date"),
-        "schedule_count": s.get("schedule_count", 0),
-        "paper_picks": s.get("paper_picks", {}),
-        "sniper_triggers": s.get("sniper_triggers", {}),
-        "hedge_sent": s.get("hedge_sent", {}),
-        "stats": s.get("stats", {"w": 0, "l": 0, "p": 0, "units": 0.0})
+    base = {
+        "engine_version": ENGINE_VERSION,
+        "schedule_date": "",
+        "credits_used_today": 0,
+        "api_hits": None,
+        "api_limit": 100,
+        "last_discovery_ts": "",
+        "morning_sync_done": False,
+        "odds_cache": [],
+        "odds_cache_ts": "",
+        "matches": [],
+        "paper_record": {"wins": 0, "losses": 0, "net_units": 0.0}
     }
-    return out
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                s = json.load(f)
+            if s.get("engine_version") != ENGINE_VERSION:
+                base["paper_record"] = s.get("paper_record", base["paper_record"])
+                base["api_hits"] = s.get("api_hits")
+                base["api_limit"] = s.get("api_limit", 100)
+                return base
+            base.update(s)
+        except Exception:
+            pass
+    return base
 
 
-def save_state(s):
+def save_state(state):
+    state["engine_version"] = ENGINE_VERSION
     with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(s, f, ensure_ascii=False, indent=1)
+        json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def tg(text, use_html=True):
+def can_poll_stage(m, stage, max_attempts, gap_min, now_bdt):
+    """Hard Credit Cap: enforces max attempts & minimum gap between API calls per stage."""
+    polls = m.setdefault("stage_polls", {})
+    rec = polls.setdefault(stage, {"count": 0, "last": ""})
+    if rec["count"] >= max_attempts:
+        return False
+    if rec["last"]:
+        try:
+            if (now_bdt - datetime.fromisoformat(rec["last"])) < timedelta(minutes=gap_min):
+                return False
+        except Exception:
+            pass
+    return True
+
+
+def mark_stage_poll(m, stage, now_bdt):
+    polls = m.setdefault("stage_polls", {})
+    rec = polls.setdefault(stage, {"count": 0, "last": ""})
+    rec["count"] = int(rec.get("count", 0)) + 1
+    rec["last"] = now_bdt.isoformat()
+
+
+# ==========================================
+# 3. TELEGRAM HTML SENDER
+# ==========================================
+def esc(text):
+    return html.escape(str(text)) if text is not None else ""
+
+
+def send_telegram(message, use_html=True):
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("⚠️ Telegram credentials missing.")
+        return False
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message[:4000],
+        "disable_web_page_preview": True
+    }
+    if use_html:
+        payload["parse_mode"] = "HTML"
     try:
-        data = {"chat_id": TG_CHAT, "text": text[:4000]}
-        if use_html:
-            data["parse_mode"] = "HTML"
-        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", json=data, timeout=20)
-        if not r.ok and use_html:
-            return tg(re.sub(r"<[^>]+>", "", html.unescape(text)), use_html=False)
-        return r.ok
-    except Exception:
+        r = requests.post(url, json=payload, timeout=15)
+        if r.status_code != 200:
+            if use_html:
+                plain = re.sub(r"<[^>]+>", "", html.unescape(message))
+                return send_telegram(plain, use_html=False)
+            print(f"Telegram Error {r.status_code}: {r.text}")
+            return False
+        return True
+    except Exception as e:
+        print(f"Telegram Exception: {e}")
         return False
 
 
-def parse(s):
-    return datetime.fromisoformat(s)
+def credit_label(state):
+    hits = API_INFO["hits"] if API_INFO["hits"] is not None else state.get("api_hits")
+    limit = API_INFO["limit"] or state.get("api_limit") or 100
+    if hits is not None:
+        return f"{hits}/{limit}"
+    return f"{state.get('credits_used_today', 0)}/{limit}"
 
 
-def parse_dt(s):
-    try:
-        d = parse(str(s).replace("Z", ""))
-        return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
-    except Exception:
-        return None
+def health_badge(venue_ok=None, wx_ok=None, odds_ok=None, ai_ok=None, squad_ok=None):
+    parts = []
+    if venue_ok is not None:
+        parts.append(f"Venue {'✅' if venue_ok else '❌'}")
+    if wx_ok is not None:
+        parts.append(f"Weather {'✅' if wx_ok else '❌'}")
+    if squad_ok is not None:
+        parts.append(f"Squad {'✅' if squad_ok else '❌'}")
+    if odds_ok is not None:
+        parts.append(f"Live Odds {'✅' if odds_ok else '❌'}")
+    if ai_ok is not None:
+        parts.append(f"AI Search {'✅' if ai_ok else '❌'}")
+    return f"🔎 <i>Data Health: {' | '.join(parts)}</i>"
 
 
+# ==========================================
+# 4. MATH, TARGET-CAP & DLS ENGINE
+# ==========================================
 def ov_to_dec(o):
     try:
         s = str(o).strip()
         if "." in s:
-            whole, balls = s.split(".", 1)
-            return int(whole) + min(int(balls[0]), 6) / 6.0
+            w, b = s.split(".", 1)
+            return int(w) + min(int(b[0]), 6) / 6.0
         return float(s)
     except Exception:
         return 0.0
 
 
-def api(ep, **params):
-    try:
-        j = requests.get(f"https://api.cricapi.com/v1/{ep}", params={"apikey": CRIC, **params}, timeout=25).json()
-    except Exception:
-        return {}
-    info = j.get("info", {})
-    if info:
-        API_DIAG["hits"] = info.get("hitsToday", API_DIAG["hits"])
-        API_DIAG["limit"] = info.get("hitsLimit", API_DIAG["limit"])
-    if j.get("status") != "success":
-        API_DIAG["reason"] = j.get("reason", "unknown")
-    return j
+def devig_odds(odds_a, odds_b):
+    if not odds_a or not odds_b or odds_a <= 1.0 or odds_b <= 1.0:
+        return None, None, 0.0
+    imp_a = 1.0 / odds_a
+    imp_b = 1.0 / odds_b
+    total_imp = imp_a + imp_b
+    vig_pct = (total_imp - 1.0) * 100.0
+    return round((imp_a / total_imp) * 100.0, 2), round((imp_b / total_imp) * 100.0, 2), round(vig_pct, 2)
 
 
-def bad_text(s):
-    s = (s or "").lower() + " "
-    if any(b in s for b in BAD_ALWAYS):
-        return True
-    return (not INCLUDE_WOMEN) and any(w in s for w in WOMEN)
+def normal_cdf(x, mean, std):
+    if std <= 0:
+        return 0.5
+    z = (x - mean) / (std * math.sqrt(2.0))
+    return 0.5 * (1.0 + math.erf(z))
 
 
-def is_bad(m):
-    if bad_text(m.get("name")) or bad_text(m.get("series")):
-        return True
-    teams = [t.lower().strip() for t in (m.get("teams") or [])]
-    if len(teams) < 2 or any(t in ("", "tbc") for t in teams) or any(t.endswith(" a") for t in teams):
-        return True
-    return (not INCLUDE_WOMEN) and any(t.endswith("-w") or t.endswith(" women") for t in teams)
+def session_lean(proj, baseline_par, std, cap=None):
+    if cap is not None:
+        proj = min(proj, float(cap))
+    low = max(1, int(round(proj - std * 0.25)))
+    high = int(round(proj + std * 0.25))
+    if cap is not None:
+        high = min(high, int(cap))
+        low = min(low, high)
+    diff = proj - baseline_par
+    under_p = normal_cdf(baseline_par, proj, std) * 100.0
+    over_p = 100.0 - under_p
+    if over_p >= 60.0 and diff >= 2.0:
+        lean = f"<b>OVER</b> ({int(round(over_p))}%)"
+    elif under_p >= 60.0 and diff <= -2.0:
+        lean = f"<b>UNDER</b> ({int(round(under_p))}%)"
+    else:
+        lean = "<b>SKIP</b> (Close)"
+    return low, high, lean
 
 
-def is_women_match(m):
-    s = f"{m.get('name', '')} {m.get('series', '')} {' '.join(m.get('teams') or [])}".lower() + " "
-    return any(w in s for w in WOMEN)
+def build_direct_sessions(par_mean, par_std, eff_max_ov=20.0, is_odi=False, is_chasing=False, target=None, dew_high=False):
+    std_ov = 50.0 if is_odi else 20.0
+    ratio = min(max(eff_max_ov / std_ov, 0.25), 1.0)
+    scaled_par = float(par_mean) * ratio
+    adj_total = scaled_par
+
+    if is_chasing and target is not None:
+        adj_total = min(float(target), (scaled_par * 0.40) + (float(target) * 0.60) + (4.5 if dew_high else 0.0))
+
+    if eff_max_ov <= 10.0:
+        pp_ov = max(2, int(round(eff_max_ov * 0.30)))
+        milestones = [(pp_ov, f"{pp_ov}-Over PP", pp_ov / eff_max_ov, 0.42)]
+    elif is_odi:
+        milestones = [
+            (10, "10-Over PP", 0.205, 0.40),
+            (25, "25-Over", 0.485, 0.62),
+            (int(eff_max_ov), f"{int(eff_max_ov)}-Over Total", 1.0, 1.0)
+        ]
+    else:
+        milestones = [
+            (6, "6-Over PP", 0.292, 0.42),
+            (10, "10-Over", 0.478, 0.60),
+            (int(eff_max_ov), f"{int(eff_max_ov)}-Over Total", 1.0, 1.0)
+        ]
+
+    rows = []
+    for ms_ov, lbl, frac, std_mul in milestones:
+        if ms_ov > eff_max_ov:
+            continue
+        if is_chasing and target is not None and ms_ov >= eff_max_ov:
+            continue
+        proj = adj_total * frac
+        base_line = scaled_par * frac
+        std = max(4.5, par_std * ratio * std_mul)
+        cap = int(target) if (is_chasing and target is not None) else None
+        lo, hi, lean = session_lean(proj, base_line, std, cap=cap)
+        rows.append({"label": lbl, "lo": lo, "hi": hi, "lean": lean})
+    return rows
 
 
-def base_country(t):
-    t = t.lower().strip()
-    if INCLUDE_WOMEN:
-        t = re.sub(r"(\s+women|\s*-w|\s*\(w\))$", "", t).strip()
-    return t
+def detect_dls_and_target(m, live):
+    is_odi = m["match_type"] == "ODI"
+    std_ov = 50.0 if is_odi else 20.0
+    scores = live.get("score") or []
+    status = str(live.get("status") or "")
+    st_low = status.lower()
+
+    r1 = int(scores[0].get("r", 0)) if scores else 0
+    w1 = int(scores[0].get("w", 0)) if scores else 0
+    ov1 = ov_to_dec(scores[0].get("o", 0.0)) if scores else 0.0
+
+    target = r1 + 1 if scores else None
+    eff_max_ov = std_ov
+    is_dls = any(k in st_low for k in ("dls", "d/l", "reduced", "rain", "shortened"))
+
+    m_need_ov = re.search(r"need\s+(\d+)\s+runs?\s+(?:in|from|off)\s+(\d+(?:\.\d+)?)\s*ov", st_low)
+    m_need_b = re.search(r"need\s+(\d+)\s+runs?\s+(?:in|from|off)\s+(\d+)\s*ball", st_low)
+    m_red = re.search(r"reduced\s+to\s+(\d+(?:\.\d+)?)\s*ov", st_low)
+    m_tgt = re.search(r"target\s*(?:is|of|:)?\s*(\d+)", st_low)
+
+    if m_tgt:
+        target = int(m_tgt.group(1))
+    if m_red:
+        eff_max_ov = float(m_red.group(1))
+        is_dls = True
+    if m_need_ov:
+        need_runs = int(m_need_ov.group(1))
+        rem_ov = float(m_need_ov.group(2))
+        if len(scores) < 2 or ov_to_dec(scores[1].get("o", 0)) == 0:
+            target = need_runs
+            eff_max_ov = rem_ov
+            if rem_ov < std_ov - 0.5:
+                is_dls = True
+    elif m_need_b and (len(scores) < 2 or ov_to_dec(scores[1].get("o", 0)) == 0):
+        need_runs = int(m_need_b.group(1))
+        rem_ov = round(int(m_need_b.group(2)) / 6.0, 1)
+        target = need_runs
+        eff_max_ov = rem_ov
+        if rem_ov < std_ov - 0.5:
+            is_dls = True
+
+    inn1_done = (len(scores) >= 2) or ("break" in st_low) or ("need" in st_low)
+    if inn1_done and w1 < 10 and 1.0 <= ov1 < (std_ov - 0.9):
+        is_dls = True
+        if eff_max_ov == std_ov:
+            eff_max_ov = max(5.0, float(math.ceil(ov1)))
+
+    return target, eff_max_ov, is_dls
 
 
-def is_major(m):
-    s = f"{m.get('name', '')} {m.get('series', '')}".lower()
-    teams = [base_country(t) for t in (m.get("teams") or [])]
-    if LEAGUE_RE.search(s) or any(f in s for f in FRANCHISE):
-        return True
-    return len(teams) == 2 and all(t in FULL for t in teams)
-
-
+# ==========================================
+# 5. DERBY-SAFE TEAM & MATCH FILTERS
+# ==========================================
 def clean_team(t):
-    return re.sub(r"\s*\[.*?\]", "", t or "").strip()
+    return re.sub(r"\s*\[.*?\]", "", str(t or "")).strip()
 
 
-def cricscore_matches():
-    out, ended_ids, results = [], set(), {}
-    for x in api("cricScore").get("data") or []:
-        if x.get("ms") == "result":
-            if x.get("id"):
-                ended_ids.add(x["id"])
-                if x.get("status"):
-                    results[x["id"]] = x["status"]
-            continue
-        if not x.get("dateTimeGMT"):
-            continue
-        teams = [clean_team(x.get("t1")), clean_team(x.get("t2"))]
-        out.append({
-            "id": x["id"], "name": f"{teams[0]} vs {teams[1]}, {x.get('matchType', '')}",
-            "venue": "", "teams": teams, "type": (x.get("matchType") or "").upper(),
-            "series": x.get("series") or "", "dt": x["dateTimeGMT"], "trusted": False
-        })
-    return out, ended_ids, results
-
-
-def active_series(state):
-    ts = state.get("series_ts")
-    if ts and NOW - parse(ts) < timedelta(days=3) and state.get("series_ids"):
-        return state.get("series_ids", [])
-    found = {}
-    for kw in SERIES_KEYWORDS:
-        for s in api("series", offset=0, search=kw).get("data") or []:
-            name = s.get("name", "")
-            if not any(y in name for y in YEARS) or bad_text(name):
-                continue
-            end = parse_dt(s.get("endDate", ""))
-            if end and end < NOW - timedelta(days=2):
-                continue
-            found[s["id"]] = name
-    ids = [[i, n] for i, n in found.items()][:10]
-    if ids:
-        state["series_ts"] = NOW.isoformat()
-        state["series_ids"] = ids
-    return state.get("series_ids", [])
-
-
-def series_matches(state):
-    out, ended_ids, results = [], set(), {}
-    for sid, sname in active_series(state):
-        for m in (api("series_info", id=sid).get("data") or {}).get("matchList") or []:
-            if m.get("matchEnded"):
-                if m.get("id"):
-                    ended_ids.add(m["id"])
-                    if m.get("status"):
-                        results[m["id"]] = m["status"]
-                continue
-            if not m.get("dateTimeGMT"):
-                continue
-            teams = m.get("teams") or [t.get("name", "") for t in m.get("teamInfo", [])]
-            out.append({
-                "id": m["id"], "name": m.get("name", ""), "venue": m.get("venue", ""),
-                "teams": teams, "type": (m.get("matchType") or "").upper(),
-                "series": sname, "dt": m["dateTimeGMT"], "trusted": True
-            })
-    return out, ended_ids, results
-
-
-def fetch_matches(state, force=False):
-    ts = state.get("matches_ts")
-    if not force and ts and NOW - parse(ts) < timedelta(hours=5) and state.get("matches"):
-        return sorted(state.get("matches", []), key=lambda x: x["start"])
-    s_list, s_ended, s_res = series_matches(state)
-    c_list, c_ended, c_res = cricscore_matches()
-    for eid in (s_ended | c_ended):
-        state.setdefault("ended", {})[eid] = True
-    state.setdefault("results", {}).update(s_res)
-    state["results"].update(c_res)
-    out, seen, keys = [], set(), set()
-    for m in s_list + c_list:
-        if is_bad(m) or state.get("ended", {}).get(m["id"]):
-            continue
-        start = parse_dt(m["dt"])
-        if not start or start - NOW > timedelta(hours=36) or NOW - start > timedelta(hours=9):
-            continue
-        key = (tuple(sorted(t.lower() for t in m["teams"])), start.strftime("%Y-%m-%d"))
-        if m["id"] in seen or key in keys or not (m["trusted"] or is_major(m)):
-            continue
-        seen.add(m["id"])
-        keys.add(key)
-        out.append({
-            "id": m["id"], "name": m["name"], "venue": m["venue"], "teams": m["teams"],
-            "type": m["type"], "series": m["series"], "start": start.isoformat()
-        })
-    out.sort(key=lambda x: x["start"])
-    if out:
-        state["matches_ts"] = NOW.isoformat()
-        state["matches"] = out
-    return sorted(state.get("matches", []), key=lambda x: x["start"])
-
-
-def fetch_espn_rss():
-    items = []
-    try:
-        r = requests.get("http://static.cricinfo.com/rss/livescores.xml", headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
-        if r.ok:
-            root = ET.fromstring(r.content)
-            for it in root.findall(".//item"):
-                t = (it.findtext("title") or "").strip()
-                if t:
-                    items.append(t)
-    except Exception:
-        pass
-    return items
+def _team_tokens(t):
+    s = clean_team(t).lower()
+    s = re.sub(r"\b(inning\s*\d*|women|womens|women's|men|xi|cricket|club|team)\b", " ", s)
+    s = re.sub(r"(\s*-w|\s*\(w\))", " ", s)
+    toks = [w for w in re.findall(r"[a-z]+", s) if len(w) >= 2]
+    return " ".join(toks), toks
 
 
 def team_match(t1, t2):
-    a, b = (t1 or "").lower().strip(), (t2 or "").lower().strip()
-    if not a or not b:
+    s1, w1 = _team_tokens(t1)
+    s2, w2 = _team_tokens(t2)
+    if not s1 or not s2:
         return False
-    if a in b or b in a:
+    if s1 == s2:
         return True
-    stop = {"cricket", "club", "team", "women", "men", "xi", "inning", "1", "2"}
-    wa = set(re.findall(r"[a-z]+", a)) - stop
-    wb = set(re.findall(r"[a-z]+", b)) - stop
-    return bool(wa and wb and (wa & wb))
+    c1, c2 = set(w1) & CITY_WORDS, set(w2) & CITY_WORDS
+    if c1 and c2 and not (c1 & c2):
+        return False
+    d1, d2 = set(w1) - CITY_WORDS, set(w2) - CITY_WORDS
+    if d1 and d2:
+        return bool(d1 & d2)
+    return set(w1) == set(w2)
 
 
-def parse_espn_score(m, rss_items):
-    teams = m.get("teams") or []
-    if len(teams) < 2:
-        return None
-    for title in rss_items:
+def same_matchup(a1, b1, a2, b2):
+    return (team_match(a1, a2) and team_match(b1, b2)) or (team_match(a1, b2) and team_match(b1, a2))
+
+
+def is_womens_match(name, series=""):
+    blob = f"{name} {series}".lower() + " "
+    return any(k in blob for k in WOMENS_KEYWORDS)
+
+
+def is_major_match(name, series, team_a, team_b, m_type):
+    blob = f"{name} {series} {team_a} {team_b}".lower()
+    if any(b in blob for b in BAD_KEYWORDS):
+        return False
+    ta, tb = clean_team(team_a).lower(), clean_team(team_b).lower()
+    if not ta or not tb or "tbc" in ta or "tbc" in tb or ta.endswith(" a") or tb.endswith(" a"):
+        return False
+    if m_type and m_type.lower() not in ALLOWED_FORMATS:
+        return False
+    if MAJOR_LEAGUE_RE.search(blob) or any(f in blob for f in MAJOR_FRANCHISES):
+        return True
+    base_a = re.sub(r"(\s+women|\s*-w|\s*\(w\))$", "", ta).strip()
+    base_b = re.sub(r"(\s+women|\s*-w|\s*\(w\))$", "", tb).strip()
+    return (base_a in FULL_NATIONS) and (base_b in FULL_NATIONS)
+
+
+# ==========================================
+# 6. WEATHER + STRICT DATE-LOCKED DATA SOURCES
+# ==========================================
+def fetch_weather(venue, start_dt_bdt):
+    if not venue or venue.lower() in ("venue pending", "unknown venue"):
+        return {"ok": False, "txt": "Weather N/A (Venue Pending)", "is_night": start_dt_bdt.hour >= 17, "high_dew": False, "rain_prob": 0}
+    try:
+        parts = [p.strip() for p in venue.split(",") if p.strip()]
+        city_candidates = []
+        if len(parts) >= 3:
+            city_candidates.append(parts[-2])
+        if len(parts) >= 2:
+            city_candidates.append(parts[-1])
+        city_candidates.append(parts[0])
+
+        geo = None
+        for city in city_candidates:
+            r = requests.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1}, timeout=10).json()
+            if r.get("results"):
+                geo = r["results"][0]
+                break
+        if not geo:
+            raise ValueError("City not geocoded")
+
+        resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": geo["latitude"],
+                "longitude": geo["longitude"],
+                "hourly": "precipitation_probability,cloud_cover,relative_humidity_2m,dew_point_2m",
+                "forecast_days": 3,
+                "timezone": "auto"
+            },
+            timeout=12
+        ).json()
+        w = resp["hourly"]
+        offset_sec = int(resp.get("utc_offset_seconds", 0))
+        start_utc = start_dt_bdt.astimezone(timezone.utc)
+        local_start = start_utc + timedelta(seconds=offset_sec)
+        target_hr = local_start.strftime("%Y-%m-%dT%H:00")
+        idx = w["time"].index(target_hr) if target_hr in w["time"] else 0
+
+        is_night = local_start.hour >= 17 or local_start.hour <= 4
+        rain = int(w["precipitation_probability"][idx] or 0)
+        rh = int(w["relative_humidity_2m"][idx] or 0)
+        dp = float(w["dew_point_2m"][idx] or 0.0)
+        high_dew = is_night and (rh >= 68 or dp >= 16.5)
+        dew_tag = "High" if high_dew else ("Moderate" if (is_night and dp >= 14.0) else "Low")
+        time_tag = "Night" if is_night else "Day"
+        txt = f"Local {local_start:%I:%M %p} ({time_tag}) | Rain {rain}% | Hum {rh}% | Dew {dp:.1f}°C ({dew_tag})"
+        return {"ok": True, "txt": txt, "is_night": is_night, "high_dew": high_dew, "rain_prob": rain, "dew_tag": dew_tag}
+    except Exception:
+        return {"ok": False, "txt": "Weather N/A (Open-Meteo unreachable)", "is_night": start_dt_bdt.hour >= 17, "high_dew": False, "rain_prob": 0, "dew_tag": "Unknown"}
+
+
+def cricapi_get(endpoint, state, **params):
+    if not CRICAPI_KEY:
+        API_INFO["error"] = "CRICAPI_KEY missing"
+        return {}
+    try:
+        r = requests.get(
+            f"https://api.cricapi.com/v1/{endpoint}",
+            params={"apikey": CRICAPI_KEY, **params},
+            timeout=20
+        )
+        state["credits_used_today"] = state.get("credits_used_today", 0) + 1
+        data = r.json()
+        info = data.get("info") or {}
+        if info.get("hitsToday") is not None:
+            API_INFO["hits"] = info["hitsToday"]
+            state["api_hits"] = info["hitsToday"]
+        if info.get("hitsLimit") is not None:
+            API_INFO["limit"] = info["hitsLimit"]
+            state["api_limit"] = info["hitsLimit"]
+        if data.get("status") != "success":
+            API_INFO["error"] = str(data.get("reason") or data.get("status") or "API failure")
+            print(f"CricAPI {endpoint} failed: {API_INFO['error']}")
+            return {}
+        return data
+    except Exception as e:
+        API_INFO["error"] = str(e)
+        print(f"CricAPI {endpoint} exception: {e}")
+        return {}
+
+
+def fetch_odds_events(state, force=False, sport_key=None):
+    if not ODDS_API_KEY:
+        return []
+    if sport_key:
+        try:
+            r = requests.get(
+                f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/",
+                params={"apiKey": ODDS_API_KEY, "regions": "uk,au", "markets": "h2h", "oddsFormat": "decimal"},
+                timeout=12
+            )
+            if r.status_code == 200:
+                fresh = r.json()
+                for ev in fresh:
+                    ev["_sport_key"] = sport_key
+                return fresh
+        except Exception as e:
+            print(f"Single-league Odds Refresh Error ({sport_key}): {e}")
+        return state.get("odds_cache", [])
+
+    ts = state.get("odds_cache_ts")
+    if not force and ts and state.get("odds_cache"):
+        try:
+            if datetime.now(BDT) - datetime.fromisoformat(ts) < timedelta(minutes=90):
+                return state["odds_cache"]
+        except Exception:
+            pass
+
+    events = []
+    try:
+        sp_r = requests.get("https://api.the-odds-api.com/v4/sports/", params={"apiKey": ODDS_API_KEY}, timeout=15)
+        if sp_r.status_code != 200:
+            return state.get("odds_cache", [])
+        keys = [
+            s["key"] for s in sp_r.json()
+            if s.get("key", "").startswith("cricket") and s.get("active") and "test" not in s.get("key", "")
+        ]
+        for k in keys:
+            r = requests.get(
+                f"https://api.the-odds-api.com/v4/sports/{k}/odds/",
+                params={"apiKey": ODDS_API_KEY, "regions": "uk,au", "markets": "h2h", "oddsFormat": "decimal"},
+                timeout=12
+            )
+            if r.status_code == 200:
+                for ev in r.json():
+                    ev["_sport_key"] = k
+                    events.append(ev)
+        if events:
+            state["odds_cache"] = events
+            state["odds_cache_ts"] = datetime.now(BDT).isoformat()
+    except Exception as e:
+        print(f"Odds API Error: {e}")
+    return state.get("odds_cache", [])
+
+
+def get_h2h_from_events(m, events):
+    team_a, team_b = m["team_a"], m["team_b"]
+    target_date = m.get("match_date_bdt")
+    for ev in (events or []):
+        if target_date:
+            dt_bdt = parse_utc_to_bdt(ev.get("commence_time"))
+            if dt_bdt and dt_bdt.strftime("%Y-%m-%d") != target_date:
+                continue
+        ha, aw = ev.get("home_team", ""), ev.get("away_team", "")
+        if same_matchup(team_a, team_b, ha, aw):
+            if ev.get("_sport_key"):
+                m["odds_sport_key"] = ev["_sport_key"]
+            oa_list, ob_list = [], []
+            for bm in ev.get("bookmakers", []):
+                for mk in bm.get("markets", []):
+                    if mk.get("key") != "h2h":
+                        continue
+                    for out in mk.get("outcomes", []):
+                        nm, pr = out.get("name", ""), out.get("price")
+                        if not pr:
+                            continue
+                        if team_match(team_a, nm):
+                            oa_list.append(float(pr))
+                        elif team_match(team_b, nm):
+                            ob_list.append(float(pr))
+            if oa_list and ob_list:
+                return round(sum(oa_list) / len(oa_list), 2), round(sum(ob_list) / len(ob_list), 2)
+    return None, None
+
+
+def fetch_all_espn_rss():
+    titles = []
+    for url in ("https://static.cricinfo.com/rss/livescores.xml", "http://static.cricinfo.com/rss/livescores.xml"):
+        try:
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            if r.status_code == 200:
+                root = ET.fromstring(r.content)
+                for item in root.findall(".//item"):
+                    t = (item.findtext("title") or "").strip()
+                    if t:
+                        titles.append(t)
+                if titles:
+                    break
+        except Exception:
+            continue
+    return titles
+
+
+def parse_espn_for_match(team_a, team_b, rss_titles):
+    score_re = re.compile(r"(?<![A-Za-z])\d{1,3}(?:/\d{1,2})?")
+    for title in (rss_titles or []):
         parts = re.split(r"\s+v\s+", title, flags=re.I)
         if len(parts) != 2:
             continue
         p1, p2 = parts[0], parts[1]
-        if (team_match(teams[0], p1) and team_match(teams[1], p2)) or (
-            team_match(teams[0], p2) and team_match(teams[1], p1)
-        ):
+        if same_matchup(team_a, team_b, p1, p2):
             tl = title.lower()
-            inn_cnt = sum(1 for side in (p1, p2) if re.search(r"\d+", side))
-            ended = (
-                any(w in tl for w in ("won by", "won ", "beat ", "defeated", "abandoned", "no result", "tied", "draw"))
-                or (inn_cnt >= 2 and "*" not in title)
-            )
-            active_side = p1 if "*" in p1 else (p2 if "*" in p2 else title)
-            nums = re.findall(r"(\d+)(?:/(\d+))?", active_side)
-            r_val, w_val = (int(nums[-1][0]), int(nums[-1][1] or 0)) if nums else (0, 0)
-            return {"raw": title, "r": r_val, "w": w_val, "inn": inn_cnt, "ended": ended, "active": "*" in title}
+            s1 = bool(score_re.search(p1))
+            s2 = bool(score_re.search(p2))
+            inn_cnt = int(s1) + int(s2)
+            has_star = "*" in title
+            ended_kw = any(k in tl for k in ("won by", "won ", "beat ", "defeated", "abandoned", "no result", "tied", "draw"))
+            is_ended = ended_kw or (inn_cnt >= 2 and not has_star)
+            is_live = (not is_ended) and (has_star or inn_cnt >= 1)
+            return {"raw": title, "is_live": is_live, "is_ended": is_ended, "inn_cnt": inn_cnt}
     return None
 
 
-def match_status_tag(m, live_map, rss_items, state):
-    if state.get("ended", {}).get(m["id"]):
-        return "ended"
-    lo = live_map.get(m["id"])
-    espn = parse_espn_score(m, rss_items) if rss_items else None
-    if (lo and lo.get("matchEnded")) or (espn and espn.get("ended")):
-        state.setdefault("ended", {})[m["id"]] = True
-        if lo and lo.get("status"):
-            state.setdefault("results", {})[m["id"]] = lo["status"]
-        return "ended"
-    if (lo and lo.get("matchStarted")) or (espn and espn.get("active")):
-        return "live"
-    mins = (parse(m["start"]) - NOW).total_seconds() / 60
-    fmt = (m.get("type") or "").upper()
-    max_dur = 480 if "ODI" in fmt else (540 if "TEST" in fmt else 195)
-    if mins < -max_dur:
-        state.setdefault("ended", {})[m["id"]] = True
-        return "ended"
-    if "ODI" not in fmt and "TEST" not in fmt and mins < -145 and not lo and not (espn and espn.get("active")):
-        return "ended"
-    if mins <= 0:
-        return "live"
-    return "upcoming"
-
-
-def in_break_window(m):
-    elapsed = (NOW - parse(m["start"])).total_seconds() / 60
-    fmt = (m.get("type") or "").upper()
-    if "ODI" in fmt:
-        return 190 <= elapsed <= 245
-    return 75 <= elapsed <= 115
-
-
-def fetch_live_map(matches, state, force=False):
-    active = [
-        m for m in matches
-        if not state.get("ended", {}).get(m["id"])
-        and -260 <= (parse(m["start"]) - NOW).total_seconds() / 60 <= 35
-    ]
-    if not active and not any(v.get("status") == "pending" for v in state.get("paper_picks", {}).values()):
-        return {}
-    cache_mins = 4 if any(in_break_window(m) for m in active) else 8
-    ts = state.get("live_ts")
-    if not force and ts and NOW - parse(ts) < timedelta(minutes=cache_mins):
-        return state.get("live_cache", {})
-    data = api("currentMatches", offset=0).get("data")
-    if data is not None:
-        live_map = {x["id"]: x for x in data}
-        for x in data:
-            if x.get("matchEnded") and x.get("status"):
-                state.setdefault("results", {})[x["id"]] = x["status"]
-        state["live_ts"] = NOW.isoformat()
-        state["live_cache"] = live_map
-    return state.get("live_cache", {})
-
-
-def format_score_txt(score, espn_obj=None):
-    if score:
-        return " | ".join(
-            f"{s.get('inning', 'Inning')}: {s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)"
-            for s in score
-        )
-    if espn_obj:
-        return f"ESPN Live: {espn_obj['raw']}"
-    return "Not started"
-
-
-def match_details(mid, live_obj=None, espn_obj=None, state=None, fetch_api=True):
-    cached_toss = (state or {}).get("toss_info", {}).get(mid)
-    toss = cached_toss or "Pending"
-    venue = ""
-    status = (live_obj or {}).get("status", "")
-    score = (live_obj or {}).get("score") or []
-    started = bool((live_obj or {}).get("matchStarted"))
-    ended = bool((live_obj or {}).get("matchEnded"))
-    xi_txt = "Pending"
-    if fetch_api:
-        try:
-            d = api("match_info", id=mid).get("data") or {}
-            venue = d.get("venue") or venue
-            status = d.get("status") or status
-            score = d.get("score") or score
-            started = bool(d.get("matchStarted", started))
-            ended = bool(d.get("matchEnded", ended))
-            if d.get("tossWinner"):
-                toss = f"{d['tossWinner']} won toss & elected to {d.get('tossChoice', '?')}"
-                if state is not None:
-                    state.setdefault("toss_info", {})[mid] = toss
-            if ended and status and state is not None:
-                state.setdefault("results", {})[mid] = status
-            xi_parts = []
-            for tb in (d.get("players") or [])[:2]:
-                plist = [p.get("name", "") for p in (tb.get("players") or [])[:11]]
-                if plist:
-                    xi_parts.append(f"{tb.get('teamName', '')}: {', '.join(plist)}")
-            if xi_parts:
-                xi_txt = " | ".join(xi_parts)
-        except Exception:
-            pass
-    if espn_obj:
-        if espn_obj.get("ended"):
-            ended = True
-        if espn_obj.get("inn", 0) >= 1:
-            started = True
-    if any(w in status.lower() for w in ("won by", "abandoned", "no result", "tied", "match ended")):
-        ended = True
-        if state is not None and status:
-            state.setdefault("results", {})[mid] = status
-    if started and toss == "Pending":
-        toss = "Live In-Play (Fetch confirmed toss via Google Search)"
-    return {
-        "toss": toss, "venue": venue, "status": status, "score": score,
-        "score_txt": format_score_txt(score, espn_obj), "started": started,
-        "ended": ended, "xi": xi_txt
-    }
-
-
-def detect_inplay_stage(m_type, obj, sent):
-    if not obj:
+def parse_utc_to_bdt(dt_str):
+    if not dt_str:
         return None
-    ended = obj.get("ended", obj.get("matchEnded"))
-    started = obj.get("started", obj.get("matchStarted"))
-    score = obj.get("score") or []
-    st = (obj.get("status") or "").lower()
-    if ended or not started or not score:
-        return None
-    fmt = (m_type or "").upper()
-    if "TEST" in fmt:
-        return None
-    max_ov = 50.0 if "ODI" in fmt else 20.0
-
-    if len(score) == 1:
-        ov = ov_to_dec(score[0].get("o", 0))
-        w = int(score[0].get("w", 0))
-        is_break = (
-            "innings break" in st or "break" in st or "need" in st
-            or w >= 10 or ov >= max_ov
-        )
-        if is_break and "break" not in sent:
-            return "break"
-        if not is_break:
-            if 9.5 <= ov <= 14.5 and "10ov" not in sent:
-                return "10ov"
-            if 5.5 <= ov <= 9.0 and "6ov" not in sent:
-                return "6ov"
-
-    if len(score) >= 2:
-        ov2 = ov_to_dec(score[1].get("o", 0))
-        if ov2 <= 2.5 and "break" not in sent:
-            return "break"
-        if 9.5 <= ov2 <= 14.5 and "2nd_10ov" not in sent:
-            return "2nd_10ov"
-        if 5.5 <= ov2 <= 9.0 and "2nd_6ov" not in sent:
-            return "2nd_6ov"
-    return None
-
-
-def detect_momentum_event(mid, live_obj, espn_obj, state):
-    cur = None
-    if live_obj and live_obj.get("score") and not live_obj.get("matchEnded"):
-        sc = live_obj["score"][-1]
-        cur = {
-            "r": int(sc.get("r", 0)), "w": int(sc.get("w", 0)),
-            "inn": len(live_obj["score"]), "st": (live_obj.get("status") or "").lower(),
-            "ts": NOW.isoformat()
-        }
-    elif espn_obj and not espn_obj.get("ended") and espn_obj.get("active"):
-        cur = {"r": espn_obj["r"], "w": espn_obj["w"], "inn": espn_obj["inn"], "st": "", "ts": NOW.isoformat()}
-    if not cur:
-        return None
-
-    prev = state["snap"].get(mid)
-    state["snap"][mid] = cur
-    if not prev:
-        return None
-
-    meta = state["mom_meta"].get(mid, {"cnt": 0, "ts": ""})
-    if meta["cnt"] >= 3 or (meta["ts"] and NOW - parse(meta["ts"]) < timedelta(minutes=15)):
-        return None
-
-    elapsed = (NOW - parse(prev["ts"])).total_seconds() / 60
-    if cur["inn"] == prev["inn"] and elapsed <= 18:
-        w_diff = cur["w"] - prev["w"]
-        r_diff = cur["r"] - prev["r"]
-        if w_diff >= 2:
-            return f"SUDDEN COLLAPSE (+{w_diff} Wickets in ~{int(max(elapsed, 1))}m)"
-        if r_diff >= 28:
-            return f"SUDDEN RUN SURGE (+{r_diff} Runs in ~{int(max(elapsed, 1))}m)"
-
-    if any(k in cur["st"] for k in ("rain", "delay", "interrupt", "wet")) and not any(
-        k in prev.get("st", "") for k in ("rain", "delay", "interrupt", "wet")
-    ):
-        return "WEATHER / PLAY INTERRUPTION"
-    return None
-
-
-def weather_info(venue, start):
     try:
-        parts = [p.strip() for p in (venue or "").split(",")]
-        city = parts[-2] if len(parts) >= 3 else parts[-1]
-        p = requests.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": city, "count": 1}, timeout=15).json()["results"][0]
-        resp = requests.get("https://api.open-meteo.com/v1/forecast", params={
-            "latitude": p["latitude"], "longitude": p["longitude"],
-            "hourly": "precipitation_probability,cloud_cover,relative_humidity_2m,dew_point_2m",
-            "forecast_days": 3, "timezone": "auto"
-        }, timeout=15).json()
-        w = resp["hourly"]
-        offset_sec = int(resp.get("utc_offset_seconds", 0))
-        local_start = start + timedelta(seconds=offset_sec)
-        target_hr = local_start.strftime("%Y-%m-%dT%H:00")
-        i = w["time"].index(target_hr) if target_hr in w["time"] else 0
-        is_night = local_start.hour >= 17 or local_start.hour <= 4
-        rh = w["relative_humidity_2m"][i]
-        dp = w["dew_point_2m"][i]
-        high_dew = is_night and (rh >= 68 or dp >= 16.5)
-        dew_tag = "High" if high_dew else ("Moderate" if (is_night and dp >= 14.0) else "Low")
-        txt = f"Local {local_start:%I:%M %p} | Rain {w['precipitation_probability'][i]}% | Cloud {w['cloud_cover'][i]}% | Dew {dp}°C ({dew_tag})"
-        return {"txt": txt, "is_night": is_night, "high_dew": high_dew, "dew_tag": dew_tag}
+        dt_utc = datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
+        if dt_utc.tzinfo is None:
+            dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+        return dt_utc.astimezone(BDT)
     except Exception:
-        is_night = start.astimezone(BDT).hour >= 17
-        return {"txt": "Clear/Dry Forecast (Open-Meteo N/A)", "is_night": is_night, "high_dew": False, "dew_tag": "Low"}
+        return None
 
 
-def research_baseline(m, wx):
-    fmt = (m.get("type") or "").upper()
-    is_night, high_dew = wx["is_night"], wx["high_dew"]
-    if "TEST" in fmt:
-        return "High Impact (+4.9% Edge; 47% vs 34% in 5 yrs)", "Test Home Bias (~59% Win | +0.50 Log-Odds)", "Bat First"
-    if "ODI" in fmt:
-        ti = "High Dew Impact (+5.5% Night Chase)" if high_dew else "Low-Moderate (+2.2% Baseline)"
-        return ti, "ODI Home Bias (~59% Win | +0.50 Log-Odds)", ("Bowl First" if (high_dew or is_night) else "Bat First")
-    ti = "High Evening Dew Impact (+6.5% Chase Boost)" if high_dew else ("Moderate Night Factor (+3.5%)" if is_night else "Low-Moderate (+2.8% Baseline)")
-    return ti, "T20 Neutral Home (50% Baseline)", ("Bowl First" if (high_dew or is_night) else "Bat First")
+def apply_schedule_time(m, dt_bdt, time_priority):
+    toss_offset = m.get("toss_offset_min", 45 if m.get("is_womens") else 30)
+    toss_dt = dt_bdt - timedelta(minutes=toss_offset)
+    pre_toss_dt = toss_dt - timedelta(minutes=20)
+    m["match_date_bdt"] = dt_bdt.strftime("%Y-%m-%d")
+    m["start_bdt"] = dt_bdt.isoformat()
+    m["toss_bdt"] = toss_dt.isoformat()
+    m["pre_toss_bdt"] = pre_toss_dt.isoformat()
+    m["time_priority"] = time_priority
 
 
-# ==================== HYBRID ADAPTIVE DLS MATH ENGINE ====================
-def norm_cdf(x):
-    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
-
-
-def dls_res(rem_ov, w_lost, max_ov=20.0):
-    if rem_ov <= 0 or w_lost >= 10:
-        return 0.0
-    k = 0.035 if max_ov <= 25 else 0.025
-    u_frac = (1.0 - math.exp(-k * rem_ov)) / (1.0 - math.exp(-k * max_ov))
-    return DLS_W[min(max(int(w_lost), 0), 10)] * u_frac
-
-
-def ou_prob(proj, line, rem_ov):
-    sigma = max(4.5, 2.8 * math.sqrt(max(rem_ov, 1.0)))
-    p_over = (1.0 - norm_cdf((line - proj) / sigma)) * 100.0
-    p_over = round(min(max(p_over, 16.0), 84.0), 1)
-    return p_over, round(100.0 - p_over, 1)
-
-
-def make_session_line(label_txt, proj, base_line, rem_ov):
-    line = round(base_line) - 0.5
-    p_over, p_under = ou_prob(proj, line, rem_ov)
-    band = max(3, int(round(1.6 * math.sqrt(max(rem_ov, 1.0)))))
-    lo, hi = max(1, int(round(proj)) - band), int(round(proj)) + band
-    best_side = "Over" if p_over >= p_under else "Under"
-    best_p = max(p_over, p_under)
-    txt = f"• **{label_txt} (Line: {line:.1f}):** {lo} – {hi} | **Over:** {p_over:.1f}% | **Under:** {p_under:.1f}%"
-    return {"txt": txt, "pick": f"{label_txt} {best_side} {line:.1f}", "p": best_p}
-
-
-def compute_math_pack(m, info, wx, stage_key):
-    fmt = (m.get("type") or "").upper()
-    is_odi = "ODI" in fmt
-    is_w = is_women_match(m)
-    max_ov = 50.0 if is_odi else 20.0
-    base_par = (230.0 if is_w else 275.0) if is_odi else (150.0 if is_w else 170.0)
-    high_dew = wx["high_dew"]
-    dew_logit = 0.28 if high_dew else 0.04
-    score = info.get("score") or []
-
-    if "TEST" in fmt or not score or (len(score) == 1 and ov_to_dec(score[0].get("o", 0)) < 1.0 and stage_key != "break"):
-        return {
-            "mode": "search_guided",
-            "lines": [],
-            "chase_p": round(100.0 / (1.0 + math.exp(-dew_logit)), 1),
-            "defend_p": round(100.0 - 100.0 / (1.0 + math.exp(-dew_logit)), 1),
-            "fav": "",
-            "note": f"Venue-Aware Search Mode (Use real {m['venue']} scoring par, pitch report & XI; Dew Log-Odds: {dew_logit:+.2f})"
-        }
-
-    sessions = []
-    is_break_or_2nd = (
-        stage_key in ("break", "2nd_6ov", "2nd_10ov")
-        or len(score) >= 2
-        or (len(score) == 1 and (int(score[0].get("w", 0)) >= 10 or ov_to_dec(score[0].get("o", 0)) >= max_ov))
-    )
-
-    if is_break_or_2nd:
-        r1 = int(score[0].get("r", 0))
-        target = r1 + 1
-        eff_par = 0.65 * r1 + 0.35 * base_par
-        r2 = int(score[1].get("r", 0)) if len(score) >= 2 else 0
-        w2 = int(score[1].get("w", 0)) if len(score) >= 2 else 0
-        ov2 = ov_to_dec(score[1].get("o", 0)) if len(score) >= 2 else 0.0
-        rem_ov = max(max_ov - ov2, 0.0)
-        runs_needed = max(target - r2, 0)
-        rrr = runs_needed / max(rem_ov, 0.16) if rem_ov > 0 else 0.0
-
-        exp_rem = eff_par * dls_res(rem_ov, w2, max_ov)
-        scale = max(7.0, (34.0 if is_odi else 24.0) * math.sqrt(max(rem_ov, 0.5) / max_ov))
-        logit = ((exp_rem - runs_needed) / scale) + (dew_logit * (rem_ov / max_ov))
-        chase_p = round(min(max(100.0 / (1.0 + math.exp(-logit)), 5.0), 95.0), 1)
-        defend_p = round(100.0 - chase_p, 1)
-
-        base_rr = eff_par / max_ov
-        crr2 = (r2 / ov2) if ov2 >= 2.0 else base_rr
-        dew_boost = 1.04 if high_dew else 1.0
-        eff_rr = (0.45 * min(rrr, base_rr * 1.45) + 0.35 * crr2 + 0.20 * base_rr) * dew_boost * DLS_W[min(w2, 9)]
-        milestones = [(10, "2nd Inn 10-Over PP"), (20, "2nd Inn 20-Over"), (30, "2nd Inn 30-Over")] if is_odi else [(6, "2nd Inn 6-Over PP"), (10, "2nd Inn 10-Over"), (15, "2nd Inn 15-Over")]
-        for ms_ov, ms_lbl in milestones:
-            if ov2 < ms_ov - 0.5:
-                span = ms_ov - ov2
-                proj = min(target, r2 + eff_rr * span)
-                b_line = min(target - 1, r2 + (0.5 * base_rr + 0.5 * crr2) * span)
-                sessions.append(make_session_line(ms_lbl, proj, b_line, span))
-
-        target_line = f"• **2nd Innings Chase Status:** Target `{target}` | Need `{runs_needed}` off `{rem_ov:.1f}` ov (`RRR {rrr:.2f}`)"
-        sessions.insert(0, {"txt": target_line, "pick": "", "p": 0})
-        note = f"Adaptive Pitch Par: {eff_par:.0f} | DLS Rem Resource: {dls_res(rem_ov, w2, max_ov)*100:.1f}% | Exp Rem: {exp_rem:.1f} vs Need {runs_needed}"
-
-    else:
-        r1 = int(score[0].get("r", 0))
-        w1 = int(score[0].get("w", 0))
-        ov1 = ov_to_dec(score[0].get("o", 0))
-        rem_ov = max(max_ov - ov1, 0.0)
-        crr1 = r1 / max(ov1, 0.5)
-        pace_par = min(max(crr1 * max_ov, base_par * 0.72), base_par * 1.50)
-        eff_par = 0.60 * pace_par + 0.40 * base_par
-        res_rem = dls_res(rem_ov, w1, max_ov)
-        par_rem = eff_par * res_rem
-        crr_rem = crr1 * rem_ov * DLS_W[min(w1, 9)]
-        proj_final = r1 + (0.50 * par_rem + 0.50 * crr_rem)
-        naive_final = r1 + (0.50 * (base_par * res_rem) + 0.50 * crr1 * rem_ov)
-
-        milestones = [(10, "10-Over PP"), (25, "25-Over Session")] if is_odi else [(6, "6-Over PP"), (10, "10-Over Session"), (15, "15-Over Session")]
-        for ms_ov, ms_lbl in milestones:
-            if ov1 < ms_ov - 0.5:
-                span = ms_ov - ov1
-                res_span = max(0.05, dls_res(rem_ov, w1, max_ov) - dls_res(max_ov - ms_ov, w1, max_ov))
-                proj_ms = r1 + (0.50 * (eff_par * res_span) + 0.50 * (crr1 * span * DLS_W[min(w1, 9)]))
-                base_ms = r1 + (0.50 * (eff_par / max_ov) + 0.50 * crr1) * span
-                sessions.append(make_session_line(ms_lbl, proj_ms, base_ms, span))
-
-        sessions.append(make_session_line("1st Innings Final Par", proj_final, naive_final, rem_ov))
-        scale = 34.0 if is_odi else 24.0
-        logit = ((base_par - proj_final) / scale) + dew_logit
-        chase_p = round(min(max(100.0 / (1.0 + math.exp(-logit)), 8.0), 92.0), 1)
-        defend_p = round(100.0 - chase_p, 1)
-        note = f"Adaptive Par: {eff_par:.0f} | DLS Rem: {res_rem*100:.1f}% | Projected 1st Inn: {proj_final:.1f}"
-
-    valid = [s for s in sessions if s["pick"]]
-    best_s = max(valid, key=lambda x: x["p"]) if valid else {"pick": "Live Chase Line", "p": max(chase_p, defend_p)}
-    match_side = f"Chasing Win ({chase_p:.1f}%)" if chase_p >= defend_p else f"Defending Win ({defend_p:.1f}%)"
-    return {
-        "mode": "dls_locked",
-        "lines": [s["txt"] for s in sessions],
-        "chase_p": chase_p,
-        "defend_p": defend_p,
-        "fav": f"**`{best_s['pick']}`** ({best_s['p']:.1f}%) | Match: **`{match_side}`**",
-        "note": note
+def make_match_record(mid, name, team_a, team_b, venue, m_type, series, dt_bdt, time_priority=1, sport_key=""):
+    womens = is_womens_match(f"{name} {team_a} {team_b}", series)
+    toss_offset = 45 if womens else 30
+    m = {
+        "id": str(mid),
+        "name": name,
+        "team_a": clean_team(team_a),
+        "team_b": clean_team(team_b),
+        "venue": venue or "Venue Pending",
+        "series": series or "",
+        "match_type": (m_type or "T20").upper(),
+        "is_womens": womens,
+        "toss_offset_min": toss_offset,
+        "time_priority": time_priority,
+        "odds_sport_key": sport_key,
+        "delay_shift_min": 0,
+        "last_delay_sig": "",
+        "stage_polls": {},
+        "sent": {
+            "pre_toss": False,
+            "toss_sessions": False,
+            "pp_review": False,
+            "innings_break": False,
+            "post_match": False
+        },
+        "cached_pre_toss": {},
+        "sniper_picks": []
     }
+    apply_schedule_time(m, dt_bdt, time_priority)
+    return m
 
 
-# ==================== MARKET ODDS & FLOW ====================
-def fetch_odds():
-    events = []
+def is_match_expired(m, now_bdt):
+    """Auto-expires old matches (T20 > 4.5h, ODI > 8.5h past eff_start) so they never block newer matches."""
+    eff_start = datetime.fromisoformat(m["start_bdt"]) + timedelta(minutes=int(m.get("delay_shift_min", 0)))
+    max_life = timedelta(hours=8, minutes=30) if m.get("match_type") == "ODI" else timedelta(hours=4, minutes=30)
+    return now_bdt > (eff_start + max_life)
+
+
+def fetch_daily_matches_bdt(today_str, state, odds_events):
+    """
+    STRICT TODAY-ONLY 3-Source Discovery (Zero previous-day carry-over!).
+    Automatically drops any match already expired (> 4.5h past start for T20).
+    """
+    now_bdt = datetime.now(BDT)
+    raw_candidates = []
+
+    # Source 1: cricScore (1 credit)
+    cs_data = cricapi_get("cricScore", state).get("data") or []
+    for x in cs_data:
+        dt_bdt = parse_utc_to_bdt(x.get("dateTimeGMT"))
+        if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
+            continue
+        if str(x.get("ms") or "").lower() == "result":
+            continue
+        mid = str(x.get("id") or "")
+        ta, tb = clean_team(x.get("t1")), clean_team(x.get("t2"))
+        m_type = str(x.get("matchType") or "T20").upper()
+        series = str(x.get("series") or "")
+        name = f"{ta} vs {tb}, {m_type}"
+        if is_major_match(name, series, ta, tb, m_type):
+            rec = make_match_record(mid, name, ta, tb, "", m_type, series, dt_bdt, time_priority=1)
+            if not is_match_expired(rec, now_bdt):
+                raw_candidates.append(rec)
+
+    # Source 2: currentMatches (1 credit)
+    cm_data = cricapi_get("currentMatches", state, offset=0).get("data") or []
+    for m in cm_data:
+        if m.get("matchEnded"):
+            continue
+        dt_bdt = parse_utc_to_bdt(m.get("dateTimeGMT"))
+        if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
+            continue
+        teams = m.get("teams") or []
+        if len(teams) < 2:
+            continue
+        mid = str(m.get("id") or "")
+        ta, tb = clean_team(teams[0]), clean_team(teams[1])
+        m_type = str(m.get("matchType") or "T20").upper()
+        name = m.get("name") or f"{ta} vs {tb}"
+        series = str(m.get("series_id") or "")
+        if is_major_match(name, series, ta, tb, m_type):
+            rec = make_match_record(mid, name, ta, tb, m.get("venue", ""), m_type, series, dt_bdt, time_priority=2)
+            if not is_match_expired(rec, now_bdt):
+                raw_candidates.append(rec)
+
+    # Source 3: Odds API UK+AU (0 CricAPI credits — highest clock priority)
+    for ev in (odds_events or []):
+        dt_bdt = parse_utc_to_bdt(ev.get("commence_time"))
+        if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
+            continue
+        ta, tb = clean_team(ev.get("home_team")), clean_team(ev.get("away_team"))
+        sport_title = ev.get("sport_title") or ev.get("_sport_key", "")
+        m_type = "ODI" if "odi" in sport_title.lower() else ("TEST" if "test" in sport_title.lower() else "T20")
+        name = f"{ta} vs {tb} ({sport_title})"
+        if is_major_match(name, sport_title, ta, tb, m_type):
+            rec = make_match_record(f"odds_{ev['id']}", name, ta, tb, "", m_type, sport_title, dt_bdt, time_priority=3, sport_key=ev.get("_sport_key", ""))
+            if not is_match_expired(rec, now_bdt):
+                raw_candidates.append(rec)
+
+    deduped = []
+    for cand in raw_candidates:
+        match_found = None
+        for ex in deduped:
+            if ex["id"] == cand["id"] or (
+                ex["match_date_bdt"] == cand["match_date_bdt"]
+                and same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"])
+            ):
+                match_found = ex
+                break
+        if not match_found:
+            deduped.append(cand)
+        else:
+            if match_found["id"].startswith("odds_") and not cand["id"].startswith("odds_"):
+                match_found["id"] = cand["id"]
+            if match_found["venue"] in ("", "Venue Pending") and cand["venue"] not in ("", "Venue Pending"):
+                match_found["venue"] = cand["venue"]
+            if not match_found["series"] and cand["series"]:
+                match_found["series"] = cand["series"]
+            if not match_found.get("odds_sport_key") and cand.get("odds_sport_key"):
+                match_found["odds_sport_key"] = cand["odds_sport_key"]
+            if cand.get("time_priority", 1) > match_found.get("time_priority", 1):
+                apply_schedule_time(match_found, datetime.fromisoformat(cand["start_bdt"]), cand["time_priority"])
+
+    deduped.sort(key=lambda x: x["start_bdt"])
+    return deduped
+
+
+def merge_matches(existing, discovered):
+    merged = list(existing)
+    added = 0
+    time_fixed = 0
+    for cand in discovered:
+        found = None
+        for ex in merged:
+            if ex["id"] == cand["id"] or (
+                ex.get("match_date_bdt") == cand.get("match_date_bdt")
+                and same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"])
+            ):
+                found = ex
+                break
+        if not found:
+            merged.append(cand)
+            added += 1
+        else:
+            if found["id"].startswith("odds_") and not cand["id"].startswith("odds_"):
+                found["id"] = cand["id"]
+            if found.get("venue") in ("", "Venue Pending") and cand.get("venue") not in ("", "Venue Pending"):
+                found["venue"] = cand["venue"]
+            if not found.get("odds_sport_key") and cand.get("odds_sport_key"):
+                found["odds_sport_key"] = cand["odds_sport_key"]
+            if cand.get("time_priority", 1) > found.get("time_priority", 1) and cand["start_bdt"] != found.get("start_bdt"):
+                apply_schedule_time(found, datetime.fromisoformat(cand["start_bdt"]), cand["time_priority"])
+                time_fixed += 1
+    merged.sort(key=lambda x: x["start_bdt"])
+    return merged, added, time_fixed
+
+
+def fetch_single_match_live(m, state, rss_titles=None):
+    """Strictly date-locked live fetch (rejects any historical match from another date)."""
+    match_data = {}
+    mid = m["id"]
+    m_date = m.get("match_date_bdt") or datetime.fromisoformat(m["start_bdt"]).strftime("%Y-%m-%d")
+
+    if mid.startswith("odds_"):
+        cm = cricapi_get("currentMatches", state, offset=0).get("data") or []
+        for x in cm:
+            dt_bdt = parse_utc_to_bdt(x.get("dateTimeGMT"))
+            if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != m_date:
+                continue
+            teams = x.get("teams") or []
+            if len(teams) >= 2 and same_matchup(m["team_a"], m["team_b"], teams[0], teams[1]):
+                m["id"] = str(x["id"])
+                mid = m["id"]
+                if x.get("venue"):
+                    m["venue"] = x["venue"]
+                match_data = x
+                break
+
+    if not mid.startswith("odds_"):
+        res = cricapi_get("match_info", state, id=mid)
+        if res.get("data"):
+            d = res["data"]
+            d_dt = parse_utc_to_bdt(d.get("dateTimeGMT"))
+            if not d_dt or d_dt.strftime("%Y-%m-%d") == m_date:
+                match_data = d
+                if match_data.get("venue") and m.get("venue") in ("", "Venue Pending"):
+                    m["venue"] = match_data["venue"]
+
+    espn = parse_espn_for_match(m["team_a"], m["team_b"], rss_titles if rss_titles is not None else fetch_all_espn_rss())
+    match_data["_espn_line"] = espn["raw"] if espn else ""
+    return match_data
+
+
+def extract_xi_text(live):
+    parts = []
+    for tb in (live.get("players") or [])[:2]:
+        plist = [p.get("name", "") for p in (tb.get("players") or [])[:11] if p.get("name")]
+        if plist:
+            parts.append(f"{tb.get('teamName', '')}: {', '.join(plist)}")
+    return " | ".join(parts) if parts else "Pending (Use Google Search)"
+
+
+# ==========================================
+# 7. GEMINI AI WITH LIVE GOOGLE SEARCH
+# ==========================================
+def _extract_json(raw_txt):
+    if not raw_txt:
+        return None
+    s = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt.strip(), flags=re.S).strip()
     try:
-        sports = requests.get("https://api.the-odds-api.com/v4/sports/", params={"apiKey": ODDS}, timeout=20).json()
-        for k in [s["key"] for s in sports if s["key"].startswith("cricket") and s.get("active")]:
-            r = requests.get(f"https://api.the-odds-api.com/v4/sports/{k}/odds/", params={"apiKey": ODDS, "regions": "uk,au,eu", "markets": "h2h", "oddsFormat": "decimal"}, timeout=20)
-            if r.ok:
-                events += r.json()
+        return json.loads(s)
     except Exception:
         pass
-    return events
+    i, j = s.find("{"), s.rfind("}")
+    if i != -1 and j > i:
+        try:
+            return json.loads(s[i:j + 1])
+        except Exception:
+            pass
+    return None
 
 
-def probs_for(match, events):
-    teams = match["teams"]
-    if len(teams) < 2:
-        return {}
-    for ev in events:
-        ha, aw = ev.get("home_team", ""), ev.get("away_team", "")
-        if (team_match(teams[0], ha) and team_match(teams[1], aw)) or (team_match(teams[0], aw) and team_match(teams[1], ha)):
-            acc_p, acc_o, cnt = {}, {}, {}
-            for bm in ev.get("bookmakers", []):
-                for mk in bm.get("markets", []):
-                    if mk["key"] != "h2h":
+def ask_gemini_json(prompt_text, use_search=True):
+    if not GEMINI_API_KEY:
+        return {}, False, False
+    models = []
+    for m in (GEMINI_ENV_MODEL, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"):
+        if m and m not in models:
+            models.append(m)
+
+    modes = (True, False) if use_search else (False,)
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        for search_on in modes:
+            payload = {
+                "contents": [{"parts": [{"text": prompt_text}]}],
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200}
+            }
+            if search_on:
+                payload["tools"] = [{"google_search": {}}]
+            else:
+                payload["generationConfig"]["responseMimeType"] = "application/json"
+            try:
+                r = requests.post(url, headers={"x-goog-api-key": GEMINI_API_KEY}, json=payload, timeout=35)
+                if r.status_code == 200:
+                    cands = r.json().get("candidates") or []
+                    if not cands:
                         continue
-                    inv = {o["name"]: 1 / o["price"] for o in mk["outcomes"] if o.get("price")}
-                    s = sum(inv.values())
-                    if not s:
-                        continue
-                    for o in mk["outcomes"]:
-                        n = o["name"]
-                        if n in inv:
-                            acc_p[n] = acc_p.get(n, 0) + inv[n] / s
-                            acc_o[n] = acc_o.get(n, 0) + o["price"]
-                            cnt[n] = cnt.get(n, 0) + 1
-            if cnt:
-                return {n: {"o": round(acc_o[n] / cnt[n], 2), "p": round(acc_p[n] / cnt[n] * 100, 1)} for n in cnt}
-    return {}
+                    parts = cands[0].get("content", {}).get("parts") or []
+                    raw = "".join(p.get("text", "") for p in parts).strip()
+                    parsed = _extract_json(raw)
+                    if isinstance(parsed, dict) and parsed:
+                        return parsed, True, search_on
+            except Exception as e:
+                print(f"Gemini ({model}, search={search_on}) Error: {e}")
+    return {}, False, False
 
 
-def normalize_market(t1, t2, probs):
-    if not probs:
-        return None
-    p1 = next((v for k, v in probs.items() if team_match(t1, k)), None)
-    p2 = next((v for k, v in probs.items() if team_match(t2, k)), None)
-    if not p1 or not p2:
-        return None
-    return {"t1_odds": p1["o"], "t1_nv": p1["p"], "t2_odds": p2["o"], "t2_nv": p2["p"]}
+# ==========================================
+# 8. MESSAGE BUILDERS (PURE TOSS + DELAY + DIRECT CALLS)
+# ==========================================
+def send_session0_daily_schedule(today_str, matches, state):
+    if not matches:
+        err_note = f"\n⚠️ <b>API Note:</b> <code>{esc(API_INFO['error'])}</code>" if API_INFO["error"] else ""
+        msg = (
+            f"📅 <b>DAILY CRICKET RADAR ({ENGINE_VERSION}) • {esc(today_str)}</b>\n"
+            f"<i>No active major T20/ODI matches remaining today.</i>{err_note}\n"
+            f"💳 CricAPI Hits: <code>{credit_label(state)}</code>\n"
+            f"💤 Zero-Credit Sleep Active until next scheduled check."
+        )
+        send_telegram(msg)
+        return
 
-
-def analyze_market_flow(opening, probs, pretoss=None):
-    if not probs:
-        return "Market Unopened (Odds Not Listed Yet)", "Market Unopened — No Verified Public/Sharp Flow Yet", "Market Unopened"
-    base = opening or probs
-    parts, max_shift, flow_team = [], 0.0, ""
-    for t, v in probs.items():
-        diff = round(v["p"] - base.get(t, v)["p"], 1)
-        parts.append(f"{t} {v['o']} ({v['p']}%)")
-        if abs(diff) > abs(max_shift):
-            max_shift, flow_team = diff, t
-    odds_txt = " vs ".join(parts) + f" | Shift: {max_shift:+.1f}%"
-    if max_shift >= 3.5:
-        flow_txt = f"Heavy Sharp/Public Flow on {flow_team} ({max_shift:+.1f}% Shift)"
-    elif max_shift >= 1.5:
-        flow_txt = f"Mild Flow on {flow_team} ({max_shift:+.1f}% Shift)"
-    elif max_shift <= -1.5:
-        flow_txt = f"Market Drift Against {flow_team} ({max_shift:+.1f}% Shift)"
-    else:
-        flow_txt = "Balanced Market (No One-Sided Flow)"
-
-    over_txt = "Monitoring Post-Toss Shift"
-    if pretoss:
-        pt_shift, pt_team = 0.0, ""
-        for t, v in probs.items():
-            if t in pretoss:
-                d = round(v["p"] - pretoss[t]["p"], 1)
-                if abs(d) > abs(pt_shift):
-                    pt_shift, pt_team = d, t
-        if abs(pt_shift) >= 4.0:
-            over_txt = f"POSSIBLE PUBLIC OVERREACTION on {pt_team} ({pt_shift:+.1f}% Post-Toss Jump)"
-        elif abs(pt_shift) >= 1.5:
-            over_txt = f"Measured Post-Toss Adjustment on {pt_team} ({pt_shift:+.1f}%)"
-        else:
-            over_txt = "Calm Post-Toss Pricing (No Overreaction)"
-    return odds_txt, flow_txt, over_txt
-
-
-# ==================== v18 SNIPER + HEDGE + AUTO PAPER-TRADING ====================
-def identify_roles(t1, t2, info):
-    """রিটার্ন করে (chase_side, defend_side) -> ('t1'/'t2', 't2'/'t1') অথবা (None, None)"""
-    score = info.get("score") or []
-    if score:
-        inn1 = str(score[0].get("inning", ""))
-        if team_match(t1, inn1) and not team_match(t2, inn1):
-            return "t2", "t1"
-        if team_match(t2, inn1) and not team_match(t1, inn1):
-            return "t1", "t2"
-    toss = str(info.get("toss") or "").lower()
-    if "won toss" in toss:
-        winner_part = toss.split("won toss")[0].strip()
-        chose_bowl = any(k in toss for k in ("bowl", "field"))
-        chose_bat = "bat" in toss
-        if team_match(t1, winner_part):
-            if chose_bowl:
-                return "t1", "t2"
-            if chose_bat:
-                return "t2", "t1"
-        elif team_match(t2, winner_part):
-            if chose_bowl:
-                return "t2", "t1"
-            if chose_bat:
-                return "t1", "t2"
-    return None, None
-
-
-def build_conditional_toss_plan(m, mkt, wx, state):
-    fmt = (m.get("type") or "").upper()
-    if "TEST" in fmt or not mkt or not wx.get("high_dew"):
-        return None  # শক্তিশালী শিশির (High Dew) + ওপেন মার্কেট ছাড়া প্রি-টস স্প্যাম করবে না
-    t1, t2 = m["teams"][0], m["teams"][1]
-    chase_boost = 6.0 if "T20" in fmt else 5.5
-    plans = []
-    for side, team_name in (("t1", t1), ("t2", t2)):
-        nv = mkt[f"{side}_nv"]
-        odds = mkt[f"{side}_odds"]
-        proj_p = round(min(nv + chase_boost, 92.0), 1)
-        edge = round(proj_p - nv, 1)
-        if edge >= SNIPER_EDGE_POST_TOSS:
-            plans.append({
-                "cond_team": team_name, "cond_decision": "bowl",
-                "target_team": team_name, "target_odds": odds,
-                "proj_p": proj_p, "mkt_p": nv, "edge": edge
-            })
-    if not plans:
-        return None
-    state["sniper_triggers"][m["id"]] = plans
-    return plans
-
-
-def send_conditional_toss_card(m, start, plans, wx):
-    vs = " vs ".join(m["teams"]) or m["name"]
     lines = [
-        f"⏳ <b>CRICKET CONDITIONAL PRE-TOSS SNIPER PLAN</b>",
-        f"🏏 <b>{esc(label(m))}</b>",
-        f"🔵 <b><code>{esc(m['teams'][0])}</code></b> vs 🟠 <b><code>{esc(m['teams'][1])}</code></b>",
-        f"🏟️ {esc(m['venue'])} | ⏰ <code>{start.astimezone(BDT):%d %b • %I:%M %p BDT}</code>",
-        f"💧 Weather: <code>{esc(wx['txt'])}</code>\n",
-        "━━━ 🎯 <b>IF–THEN SNIPER TRIGGERS</b> ━━━"
+        f"📅 <b>DAILY CRICKET SCHEDULE ({ENGINE_VERSION}) • {esc(today_str)}</b>",
+        f"🕒 Window: <code>12:00 AM – 11:59 PM BDT</code> | Active Matches: <code>{len(matches)}</code>",
+        f"💳 CricAPI Hits: <code>{credit_label(state)}</code>\n"
     ]
-    for p in plans:
+    for idx, m in enumerate(matches, 1):
+        st = datetime.fromisoformat(m["start_bdt"]).strftime("%I:%M %p")
+        tt = datetime.fromisoformat(m["toss_bdt"]).strftime("%I:%M %p")
+        pt = datetime.fromisoformat(m["pre_toss_bdt"]).strftime("%I:%M %p")
+        cat = "Women's (-45m Toss)" if m["is_womens"] else "Men's (-30m Toss)"
+        clk = "✓BookieClock" if m.get("time_priority", 1) == 3 else "CricAPI"
         lines.append(
-            f"• <b>IF <code>{esc(p['cond_team'])}</code> wins toss &amp; BOWLS:</b>\n"
-            f"  ➔ Instant Sniper on <b>{esc(p['target_team'])} ML</b> @ <code>{p['target_odds']}</code> "
-            f"(Proj <code>{p['proj_p']}%</code> vs Mkt <code>{p['mkt_p']}%</code> | Edge <code>+{p['edge']}%</code>)"
+            f"<b>{idx}. {esc(m['team_a'])} vs {esc(m['team_b'])}</b> ({esc(m['match_type'])} • {clk})\n"
+            f"   🏟️ <i>{esc(m['venue'])}</i> • <code>{cat}</code>\n"
+            f"   ⏰ Pre-Toss: <code>{pt}</code> | Toss: <code>{tt}</code> | Match: <code>{st} BDT</code>"
         )
-    lines.append("\n<blockquote>টস কনফার্ম হওয়া মাত্র শর্ত মিললে বট অটো <b>Confirmed Post-Toss Lock</b> পাঠিয়ে 1u পেপার-ট্রেড লগ করবে। না মিললে SILENT SKIP।</blockquote>")
-    return tg("\n".join(lines))
+
+    lines.append("\n<blockquote>🔒 <b>Hard Credit Cap Active:</b> Max 7–9 credits/match | 0 credits in off-hours | Old matches auto-expire.</blockquote>")
+    send_telegram("\n".join(lines))
 
 
-def evaluate_cricket_sniper(stage_key, m, info, wx, mpack, mkt, pretoss_mkt, state):
-    fmt = (m.get("type") or "").upper()
-    if "TEST" in fmt or not mkt or len(m.get("teams") or []) < 2:
-        return None
-    t1, t2 = m["teams"][0], m["teams"][1]
-    chase_side, defend_side = identify_roles(t1, t2, info)
-    if not chase_side:
-        return None
+def run_session1_pre_toss(m, state, rss_titles=None):
+    if m.get("venue") in ("", "Venue Pending"):
+        fetch_single_match_live(m, state, rss_titles)
 
-    model_t1_p, model_t2_p = None, None
-    # ১. Post-Toss (Conditional Trigger Hit অথবা Public Overreaction Fade)
-    if stage_key == "prematch":
-        base_mkt = pretoss_mkt or mkt
-        boost = 6.0 if wx["high_dew"] else (3.0 if wx["is_night"] else 1.5)
-        base_chase_nv = base_mkt[f"{chase_side}_nv"]
-        m_chase = round(min(max(base_chase_nv + boost, 8.0), 92.0), 1)
-        m_def = round(100.0 - m_chase, 1)
-        model_t1_p = m_chase if chase_side == "t1" else m_def
-        model_t2_p = round(100.0 - model_t1_p, 1)
+    ta, tb, venue = m["team_a"], m["team_b"], m["venue"]
+    start_dt = datetime.fromisoformat(m["start_bdt"])
+    st_str = start_dt.strftime("%I:%M %p")
+    tt_str = datetime.fromisoformat(m["toss_bdt"]).strftime("%I:%M %p")
+    pt_str = datetime.fromisoformat(m["pre_toss_bdt"]).strftime("%I:%M %p")
+    offset_label = f"-{m['toss_offset_min']}m"
 
-    # ২. In-Play Break বা 2nd Innings DLS Lock
-    elif stage_key in ("break", "2nd_10ov", "momentum") and mpack["mode"] == "dls_locked":
-        score = info.get("score") or []
-        if stage_key == "momentum" and len(score) < 2:
-            return None  # ১ম ইনিংসের হুটহাট উইকেটে স্নাইপার নয়
-        model_t1_p = mpack["chase_p"] if chase_side == "t1" else mpack["defend_p"]
-        model_t2_p = round(100.0 - model_t1_p, 1)
-    else:
-        return None
+    wx = fetch_weather(venue, start_dt)
+    venue_ok = venue not in ("", "Venue Pending", "Unknown Venue")
 
-    edge_t1 = round(model_t1_p - mkt["t1_nv"], 1)
-    edge_t2 = round(model_t2_p - mkt["t2_nv"], 1)
-    if edge_t1 >= edge_t2:
-        pick = {"team": t1, "opp": t2, "side": "t1", "odds": mkt["t1_odds"], "model_p": model_t1_p, "mkt_p": mkt["t1_nv"], "edge": edge_t1}
-    else:
-        pick = {"team": t2, "opp": t1, "side": "t2", "odds": mkt["t2_odds"], "model_p": model_t2_p, "mkt_p": mkt["t2_nv"], "edge": edge_t2}
+    prompt = f"""Use Google Search to check real recent toss history, captains, and venue conditions for today's cricket match:
+Match: {ta} vs {tb} ({m['match_type']}, Series: {m.get('series','')})
+Venue: {venue}
+Weather: {wx['txt']}
 
-    reason = None
-    if stage_key == "prematch":
-        triggers = state["sniper_triggers"].get(m["id"]) or []
-        toss_txt = str(info.get("toss") or "").lower()
-        cond_hit = any(
-            team_match(p["cond_team"], pick["team"])
-            and team_match(p["cond_team"], toss_txt.split("won toss")[0])
-            and any(k in toss_txt for k in ("bowl", "field"))
-            for p in triggers
-        )
-        shift = abs(mkt["t1_nv"] - pretoss_mkt["t1_nv"]) if pretoss_mkt else 0.0
-        if cond_hit and pick["edge"] >= 4.5:
-            reason = "Confirmed Post-Toss Conditional Lock"
-        elif shift >= 4.0 and pick["edge"] >= SNIPER_EDGE_POST_TOSS:
-            reason = f"Post-Toss Overreaction Fade ({shift:+.1f}% Shift)"
-    elif stage_key == "break":
-        if pick["edge"] >= SNIPER_EDGE_BREAK:
-            reason = "1st Innings Break Adaptive DLS Sniper"
-    elif stage_key in ("2nd_10ov", "momentum"):
-        if pick["edge"] >= SNIPER_EDGE_CHASE:
-            reason = "2nd Innings Mid-Chase DLS Sniper"
+Output ONLY a single valid JSON object (no markdown) with these exact keys:
+{{
+  "cap_a_name": "Real captain name of {ta}",
+  "cap_a_last5": "e.g. 3/5",
+  "cap_b_name": "Real captain name of {tb}",
+  "cap_b_last5": "e.g. 2/5",
+  "streak_hint": "1 crisp line explaining which captain is on a hot/cold toss streak",
+  "h2h_toss_record": "e.g. {ta} 3 - 2 {tb} (Last 5)",
+  "h2h_hint": "1 crisp line explaining head-to-head toss trend",
+  "venue_coin_trend": "e.g. 1st-listed/Home team won 4 of last 6 tosses here",
+  "venue_trend_hint": "1 crisp line on series/venue toss trend",
+  "toss_hints_lean": "{ta} or {tb}",
+  "signals_aligned": "e.g. 2/3 Signals",
+  "highest_toss_need": "{ta} or {tb}",
+  "toss_need_level": "High Need / Moderate Need",
+  "toss_need_reason": "1 crisp line explaining why pitch/dew/squad makes winning the toss critical for this team",
+  "if_a_wins_call": "Bowl First (70%) or Bat First (65%) + 6-word reason",
+  "if_b_wins_call": "Bowl First (75%) or Bat First (60%) + 6-word reason",
+  "likely_call": "Bowl First or Bat First",
+  "venue_par_mean": 164.0,
+  "venue_par_std": 14.5
+}}
+Rules: NEVER guess fake stats; if exact last-5 toss record is unavailable via search, write "Unverified". Do NOT include match winner or session predictions."""
 
-    if not reason:
-        return None
-    pick["reason"] = reason
-    pick["stage"] = stage_key
-    pick["model_t1_p"] = model_t1_p
-    pick["model_t2_p"] = model_t2_p
-    return pick
+    ai, ai_ok, used_search = ask_gemini_json(prompt, use_search=True)
 
+    is_odi = m["match_type"] == "ODI"
+    default_par = (230.0 if m["is_womens"] else 272.0) if is_odi else (152.0 if m["is_womens"] else 166.0)
+    par_mean = float(ai.get("venue_par_mean") or default_par)
+    par_std = float(ai.get("venue_par_std") or (22.0 if is_odi else 14.5))
 
-def log_cricket_paper_pick(m, start, pick, state):
-    mid = m["id"]
-    if mid in state["paper_picks"]:
-        return False
-    state["paper_picks"][mid] = {
-        "title": " vs ".join(m["teams"]) or m["name"],
-        "team": pick["team"],
-        "opp": pick["opp"],
-        "side": pick["side"],
-        "odds": float(pick["odds"]),
-        "stage": pick["stage"],
-        "reason": pick["reason"],
-        "start": start.isoformat(),
-        "status": "pending"
+    m["cached_pre_toss"] = {
+        "par_mean": par_mean,
+        "par_std": par_std,
+        "dew_high": wx["high_dew"],
+        "wx_txt": wx["txt"],
+        "wx_ok": wx["ok"]
     }
+
+    if ai_ok:
+        cap_a = f"{ai.get('cap_a_name', ta)} ({ai.get('cap_a_last5', 'N/A')})"
+        cap_b = f"{ai.get('cap_b_name', tb)} ({ai.get('cap_b_last5', 'N/A')})"
+        hints_block = (
+            f"<b>1. Captain's Last-5 Streak:</b> 🔵 <code>{esc(cap_a)}</code> vs 🟠 <code>{esc(cap_b)}</code>\n"
+            f"   <i>↳ {esc(ai.get('streak_hint', 'N/A'))}</i>\n"
+            f"<b>2. H2H Toss History:</b> <code>{esc(ai.get('h2h_toss_record', 'Unverified'))}</code>\n"
+            f"   <i>↳ {esc(ai.get('h2h_hint', 'N/A'))}</i>\n"
+            f"<b>3. Venue / Series Coin Trend:</b> <code>{esc(ai.get('venue_coin_trend', 'Unverified'))}</code>\n"
+            f"   <i>↳ {esc(ai.get('venue_trend_hint', 'N/A'))}</i>"
+        )
+        need_block = (
+            f"• <b>Highest Toss Need:</b> <b><code>{esc(ai.get('highest_toss_need', 'Balanced'))}</code></b> (<i>{esc(ai.get('toss_need_level', 'Moderate'))}</i>)\n"
+            f"  <i>↳ {esc(ai.get('toss_need_reason', 'N/A'))}</i>\n"
+            f"• <b>Expected Call (If Won):</b>\n"
+            f"  • <b>If 🔵 {esc(ta)} Wins:</b> <code>{esc(ai.get('if_a_wins_call', 'Bowl First'))}</code>\n"
+            f"  • <b>If 🟠 {esc(tb)} Wins:</b> <code>{esc(ai.get('if_b_wins_call', 'Bowl First'))}</code>"
+        )
+        verdict = (
+            f"🪙 <b>Toss Hints Lean:</b> <b><code>{esc(ai.get('toss_hints_lean', '50/50'))}</code></b> (<i>{esc(ai.get('signals_aligned', 'N/A'))}</i>) | "
+            f"<b>Needs Toss More:</b> <b><code>{esc(ai.get('highest_toss_need', 'N/A'))}</code></b> | "
+            f"<b>Likely Call:</b> <code>{esc(ai.get('likely_call', 'Bowl First'))}</code>"
+        )
+    else:
+        hints_block = "⚠️ <i>AI Toss History Search unavailable right now — no fake hints generated.</i>"
+        need_block = f"• <b>Weather Factor:</b> <code>{'Night/Dew favors Bowl First' if wx['high_dew'] else 'Check pitch report at toss'}</code>"
+        verdict = "🪙 <b>Toss Hints:</b> <code>N/A (AI Search Failed)</code> — Wait for Confirmed Toss."
+
+    msg = (
+        f"🪙 <b>{esc(m['match_type'])} • PRE-TOSS HINTS &amp; NEED RADAR</b>\n"
+        f"🔵 <b>{esc(ta)}</b> vs 🟠 <b>{esc(tb)}</b>\n"
+        f"🏟️ <i>{esc(venue)}</i>\n"
+        f"🕒 Match: <code>{st_str}</code> | Toss (<code>{offset_label}</code>): <code>{tt_str}</code> | Alert: <code>{pt_str} BDT</code>\n"
+        f"💧 <b>Weather:</b> <code>{esc(wx['txt'])}</code>\n\n"
+        f"——— 🔍 <b>TOSS WIN HINTS (3 SIGNALS)</b> ———\n"
+        f"{hints_block}\n\n"
+        f"——— ⚖️ <b>TOSS NEED &amp; EXPECTED CALL</b> ———\n"
+        f"{need_block}\n\n"
+        f"<blockquote>{verdict}</blockquote>\n"
+        f"{health_badge(venue_ok=venue_ok, wx_ok=wx['ok'], ai_ok=(ai_ok and used_search))}"
+    )
+    if send_telegram(msg):
+        m["sent"]["pre_toss"] = True
+
+
+def check_and_send_delay_update(m, live, now_bdt):
+    status = str(live.get("status") or "").strip()
+    espn_line = str(live.get("_espn_line") or "").strip()
+    blob = f"{status} {espn_line}".lower()
+
+    has_delay_kw = any(k in blob for k in DELAY_KEYWORDS)
+    toss_dt = datetime.fromisoformat(m["toss_bdt"])
+    is_silent_delay = (now_bdt >= toss_dt + timedelta(minutes=12)) and not live.get("tossWinner") and not live.get("score") and not live.get("matchStarted")
+    if not has_delay_kw and not is_silent_delay:
+        return False
+
+    start_dt = datetime.fromisoformat(m["start_bdt"])
+    eff_start = start_dt + timedelta(minutes=int(m.get("delay_shift_min", 0)))
+    if now_bdt >= eff_start - timedelta(minutes=15):
+        needed_shift = int((now_bdt + timedelta(minutes=25) - start_dt).total_seconds() // 60)
+        m["delay_shift_min"] = min(max(int(m.get("delay_shift_min", 0)), needed_shift), 180)
+
+    sig_key = f"{status.lower()[:50]}|{m['delay_shift_min'] // 30}"
+    if sig_key == m.get("last_delay_sig"):
+        return True
+
+    ai_delay, ai_ok, _ = ask_gemini_json(
+        f"Check live cricket match delay update via Google Search for {m['team_a']} vs {m['team_b']} at {m['venue']} today. "
+        f"Current API status: '{status or 'Toss Delayed'}'. "
+        f"Return ONLY JSON: {{\"reason\": \"Rain / Wet Outfield / Previous Match Overrun / Toss Delayed\", "
+        f"\"next_inspection\": \"Revised toss or inspection time in BDT (or Pending)\", "
+        f"\"dew_impact\": \"1 short line on how delay affects dew/toss decision\"}}",
+        use_search=True
+    )
+
+    reason = ai_delay.get("reason") if ai_ok else (status or "Toss Delayed / Waiting for Official Update")
+    next_insp = ai_delay.get("next_inspection") if ai_ok else "Next check in 15m"
+    dew_imp = ai_delay.get("dew_impact") if ai_ok else "Later start may increase evening dew / shorten overs."
+
+    msg = (
+        f"⏳ <b>TOSS / MATCH DELAY UPDATE</b>\n"
+        f"🔵 <b>{esc(m['team_a'])}</b> vs 🟠 <b>{esc(m['team_b'])}</b>\n"
+        f"🏟️ <i>{esc(m['venue'])}</i>\n\n"
+        f"• <b>Original Toss:</b> <code>{toss_dt.strftime('%I:%M %p BDT')}</code> ➔ <b>Status:</b> <code>DELAYED</code>\n"
+        f"• <b>Reason:</b> <code>{esc(reason)}</code>\n"
+        f"• <b>Next Inspection / Update:</b> <code>{esc(next_insp)}</code>\n"
+        f"• <b>Delay Impact:</b> <i>{esc(dew_imp)}</i>\n\n"
+        f"<blockquote>🔄 <b>Auto-Shift Active (+{m['delay_shift_min']}m):</b> Windows shifted automatically. Checking every 15m (Credit-Capped).</blockquote>"
+    )
+    if send_telegram(msg):
+        m["last_delay_sig"] = sig_key
     return True
 
 
-def check_live_cricket_hedge(m, info, wx, mkt, state):
-    mid = m["id"]
-    pk = state["paper_picks"].get(mid)
-    if not pk or pk.get("status") != "pending" or mid in state["hedge_sent"]:
-        return False
-    score = info.get("score") or []
-    if len(score) < 2:
-        return False  # শুধু ২য় ইনিংসে চেজ চলাকালীন হেজ চেক করবে
-    mpack = compute_math_pack(m, info, wx, "2nd_10ov")
-    if mpack["mode"] != "dls_locked":
-        return False
-    t1, t2 = m["teams"][0], m["teams"][1]
-    chase_side, _ = identify_roles(t1, t2, info)
-    if not chase_side:
-        return False
-    live_t1_p = mpack["chase_p"] if chase_side == "t1" else mpack["defend_p"]
-    backed_p = live_t1_p if pk["side"] == "t1" else round(100.0 - live_t1_p, 1)
+def run_squad_audit_and_fair_prob(m, live, wx, stage_name, base_prob_a, target_info=""):
+    xi_txt = extract_xi_text(live)
+    prompt = f"""Use Google Search to audit the confirmed Playing XI, missing key players, recent form, and pitch matchup for {m['team_a']} vs {m['team_b']} at {m['venue']} ({m['match_type']}).
+Stage: {stage_name}
+Toss: {live.get('tossWinner', 'Pending')} {live.get('tossChoice', '')}
+API Playing XI: {xi_txt}
+Weather/Dew: {wx['txt']}
+Match Situation: {target_info or 'Pre-1st Innings'}
 
-    backed_live_odds = (mkt["t1_odds"] if pk["side"] == "t1" else mkt["t2_odds"]) if mkt else None
-    opp_odds = (mkt["t2_odds"] if pk["side"] == "t1" else mkt["t1_odds"]) if mkt else None
-    if backed_p < 82.0 and not (backed_live_odds and backed_live_odds <= 1.25):
-        return False
+Output ONLY valid JSON:
+{{
+  "squad_summary": "1 crisp sentence comparing confirmed Playing XI strengths, bowling/batting depth vs pitch",
+  "squad_veto_team": "None OR exact team name that has a major XI red flag (weak death bowling/missing stars)",
+  "veto_reason": "short reason if veto applies else None",
+  "squad_edge_adj_a": 0.0,
+  "tactical_note": "1 crisp sentence on why favored team wins or why match is 50/50"
+}}
+Rules: Keep squad_edge_adj_a strictly between -5.0 and +5.0 (positive favors {m['team_a']}, negative favors {m['team_b']})."""
 
-    est_tag = ""
-    if not opp_odds or opp_odds <= 1.05:
-        opp_p = max(100.0 - backed_p, 4.0)
-        opp_odds = round((100.0 / opp_p) * 0.94, 2)
-        est_tag = " (est)"
+    ai, ai_ok, _ = ask_gemini_json(prompt, use_search=True)
+    if not ai_ok:
+        return base_prob_a, "Playing XI Search unavailable (math-only audit)", "None", "", False
 
-    o1, o2 = float(pk["odds"]), float(opp_odds)
-    h_stake = round(o1 / o2, 2)
-    locked_profit = round(o1 - 1.0 - h_stake, 2)
-    if locked_profit <= 0.05:
-        return False
+    adj = max(min(float(ai.get("squad_edge_adj_a") or 0.0), 5.0), -5.0)
+    adj_prob_a = round(min(max(base_prob_a + adj, 10.0), 90.0), 1)
+    summary = str(ai.get("squad_summary") or "Full-strength XIs reported.")
+    veto_team = str(ai.get("squad_veto_team") or "None")
+    veto_reason = str(ai.get("veto_reason") or "")
+    tactical = str(ai.get("tactical_note") or "")
+    return adj_prob_a, summary, veto_team, (veto_reason if veto_team.lower() != "none" else tactical), True
+
+
+def run_session2_confirmed_toss(m, state, odds_events, now_bdt, rss_titles=None):
+    live = fetch_single_match_live(m, state, rss_titles)
+    toss_winner = str(live.get("tossWinner") or "").strip()
+    toss_choice = str(live.get("tossChoice") or "").strip()
+    status_txt = str(live.get("status") or "").strip()
+    espn_line = str(live.get("_espn_line") or "").strip()
+
+    if not toss_winner and "won the toss" not in status_txt.lower() and not live.get("score") and not live.get("matchStarted"):
+        check_and_send_delay_update(m, live, now_bdt)
+        return
+
+    toss_str = f"{toss_winner} won toss & elected to {toss_choice.upper()}" if toss_winner else (status_txt or espn_line or "Match Live")
+    ta, tb = m["team_a"], m["team_b"]
+    is_odi = m["match_type"] == "ODI"
+    start_dt = datetime.fromisoformat(m["start_bdt"])
+    cache = m.get("cached_pre_toss", {})
+
+    wx = {"ok": cache.get("wx_ok", False), "txt": cache.get("wx_txt", ""), "high_dew": cache.get("dew_high", False)}
+    if not wx["txt"]:
+        wx = fetch_weather(m["venue"], start_dt)
+
+    default_par = (230.0 if m["is_womens"] else 272.0) if is_odi else (152.0 if m["is_womens"] else 166.0)
+    par_mean = float(cache.get("par_mean") or default_par)
+    par_std = float(cache.get("par_std") or (22.0 if is_odi else 14.5))
+
+    fresh_events = fetch_odds_events(state, sport_key=m.get("odds_sport_key")) if m.get("odds_sport_key") else odds_events
+    odds_a, odds_b = get_h2h_from_events(m, fresh_events)
+    true_a, true_b, _ = devig_odds(odds_a, odds_b)
+    odds_ok = bool(odds_a and odds_b and true_a is not None)
+
+    bat_first = ta
+    if toss_winner:
+        if (team_match(ta, toss_winner) and "bowl" in toss_choice.lower()) or \
+           (team_match(tb, toss_winner) and "bat" in toss_choice.lower()):
+            bat_first = tb
+    elif live.get("score"):
+        if team_match(tb, str(live["score"][0].get("inning", ""))):
+            bat_first = tb
+
+    chasing_team = tb if bat_first == ta else ta
+    dew_boost = 4.5 if wx["high_dew"] else 1.5
+    base_a = true_a if odds_ok else 50.0
+    base_a = min(base_a + dew_boost, 88.0) if chasing_team == ta else max(base_a - dew_boost, 12.0)
+
+    prob_a, squad_summary, veto_team, squad_note, ai_ok = run_squad_audit_and_fair_prob(
+        m, live, wx, "Confirmed Post-Toss & Playing XI", base_a
+    )
+    prob_b = round(100.0 - prob_a, 1)
+
+    fav_team = ta if prob_a >= prob_b else tb
+    fav_prob = max(prob_a, prob_b)
+    fav_odds = (odds_a if fav_team == ta else odds_b) if odds_ok else None
+    fav_edge = round((prob_a - true_a) if fav_team == ta else (prob_b - true_b), 1) if odds_ok else 0.0
+
+    squad_vetoed = (veto_team.lower() != "none") and team_match(fav_team, veto_team)
+    is_dls = any(k in status_txt.lower() for k in ("dls", "d/l", "reduced", "rain"))
+
+    if is_dls:
+        verdict = "⛔ <b>MATCH CALL: HARD SKIP (RAIN / DLS VARIANCE)</b>\n<i>↳ Rain-affected match — A+ Sniper locked off.</i>"
+    elif squad_vetoed:
+        verdict = f"⛔ <b>MATCH CALL: SKIP (SQUAD RISK)</b>\n<i>↳ Squad Audit Veto on {esc(fav_team)}: {esc(squad_note)}</i>"
+    elif (odds_ok and fav_prob >= 72.0 and fav_edge >= 4.5) or (odds_ok and fav_prob >= 78.0 and fav_edge >= -1.0) or (not odds_ok and fav_prob >= 78.0 and ai_ok):
+        odds_tag = f" @ <code>{fav_odds}</code>" if fav_odds else ""
+        verdict = (
+            f"🎯 <b>A+ SNIPER PICK: <code>{esc(fav_team)} WIN</code>{odds_tag} ({fav_prob}%)</b>\n"
+            f"<i>↳ {esc(squad_note or 'Pitch, dew, market & Playing XI all aligned.')}</i>"
+        )
+        m["sniper_picks"].append({
+            "label": f"{fav_team} WIN" + (f" @ {fav_odds}" if fav_odds else ""),
+            "conf": int(round(fav_prob)),
+            "type": "winner",
+            "team": fav_team,
+            "odds": fav_odds
+        })
+    else:
+        verdict = f"⛔ <b>MATCH CALL: SKIP (NO A+ SNIPER YET)</b>\n<i>↳ Close matchup ({esc(ta)} {prob_a}% vs {esc(tb)} {prob_b}%) — waiting for 1st Innings Break.</i>"
+
+    sessions = build_direct_sessions(par_mean, par_std, eff_max_ov=(50.0 if is_odi else 20.0), is_odi=is_odi, is_chasing=False, dew_high=wx["high_dew"])
+    sess_lines = "\n".join(f"• <b>{s['label']}:</b> Expected <code>{s['lo']}–{s['hi']}</code> ➔ Lean: {s['lean']}" for s in sessions)
+    live_sc = ""
+    if live.get("score"):
+        sc0 = live["score"][0]
+        live_sc = f"\n🏏 <b>Live:</b> <code>{esc(sc0.get('inning',''))}: {sc0.get('r',0)}/{sc0.get('w',0)} ({sc0.get('o',0)} ov)</code>"
+    odds_txt = f"{esc(ta)} <code>{odds_a}</code> vs {esc(tb)} <code>{odds_b}</code>" if odds_ok else "<code>N/A (Market Unlisted/Suspended)</code>"
 
     msg = (
-        f"🔒 <b>CRICKET LOCK PROFIT / HEDGE WINDOW</b>\n"
-        f"🏏 <b>{esc(pk['title'])}</b>\n"
-        f"📊 Live: <code>{esc(info['score_txt'])}</code>\n\n"
-        f"• <b>Tracked Sniper:</b> <code>1.00u</code> on <b>{esc(pk['team'])}</b> @ <code>{o1}</code>\n"
-        f"• <b>Live DLS Win %:</b> <b>{esc(pk['team'])}</b> <code>{backed_p}%</code>\n"
-        f"• <b>Opposite Odds:</b> <b>{esc(pk['opp'])}</b> @ <code>{o2}{est_tag}</code>\n\n"
-        f"💰 <b>Equal-Profit Hedge Formula:</b>\n"
-        f"• Place <b><code>{h_stake}u</code></b> on <b>{esc(pk['opp'])}</b> @ <code>{o2}</code>\n"
-        f"<blockquote>✅ <b>Guaranteed Profit: <code>+{locked_profit:.2f}u</code></b> — যে দলই জিতুক প্রফিট পকেটে লক।</blockquote>"
+        f"🪙 <b>CONFIRMED TOSS &amp; 1ST INN DIRECT CALL</b>\n"
+        f"🔵 <b>{esc(ta)}</b> vs 🟠 <b>{esc(tb)}</b>\n"
+        f"📢 <b>Toss:</b> <code>{esc(toss_str)}</code>{live_sc}\n"
+        f"👥 <b>Squad Audit:</b> <i>{esc(squad_summary)}</i>\n"
+        f"📊 <b>Live Odds:</b> {odds_txt} | <b>Model:</b> 🔵 <code>{prob_a}%</code> vs 🟠 <code>{prob_b}%</code>\n\n"
+        f"🔢 <b>1ST INNINGS SESSIONS ({esc(bat_first)} Batting)</b>\n"
+        f"{sess_lines}\n\n"
+        f"<blockquote>{verdict}</blockquote>\n"
+        f"{health_badge(venue_ok=m.get('venue') not in ('', 'Venue Pending'), wx_ok=wx['ok'], squad_ok=ai_ok, odds_ok=odds_ok)}"
     )
-    if tg(msg):
-        state["hedge_sent"][mid] = True
-        return True
-    return False
+    if send_telegram(msg):
+        m["sent"]["toss_sessions"] = True
 
 
-def settle_cricket_paper_picks(state, live_map, rss_items):
-    settled = []
-    for mid, pk in list(state["paper_picks"].items()):
-        if pk.get("status") != "pending":
-            continue
-        st_txt = state.get("results", {}).get(mid, "")
-        if not st_txt and mid in live_map and live_map[mid].get("matchEnded"):
-            st_txt = live_map[mid].get("status", "")
-        if not st_txt:
-            # যদি ম্যাচ শেষ হয়ে যাওয়ার সময় পার হয়ে থাকে তবে match_info চেক করবে (৩০ মিনিটে একবার)
-            st_dt = parse_dt(pk.get("start"))
-            last_p = state["poll_ts"].get(f"settle_{mid}")
-            due = bool(state.get("ended", {}).get(mid)) or (st_dt and NOW - st_dt >= timedelta(hours=3))
-            if due and (not last_p or NOW - parse(last_p) >= timedelta(minutes=30)):
-                d = api("match_info", id=mid).get("data") or {}
-                state["poll_ts"][f"settle_{mid}"] = NOW.isoformat()
-                if d.get("matchEnded") and d.get("status"):
-                    st_txt = d["status"]
-                    state["results"][mid] = st_txt
-        if not st_txt:
-            continue
+def run_session3_pp_review(m, state, rss_titles=None):
+    live = fetch_single_match_live(m, state, rss_titles)
+    scores = live.get("score") or []
+    if not scores:
+        return
+    is_odi = m["match_type"] == "ODI"
+    _, eff_max_ov, is_dls = detect_dls_and_target(m, live)
+    pp_gate = 9.4 if is_odi else (3.4 if eff_max_ov <= 10.0 else 5.4)
 
-        st_low = st_txt.lower()
-        res = None
-        if any(k in st_low for k in ("no result", "abandoned", "match tied", "draw")):
-            res = "PUSH"
-        elif " won " in st_low or " won by" in st_low:
-            winner_part = st_low.split(" won")[0].strip()
-            if team_match(winner_part, pk["team"]):
-                res = "WIN"
-            elif team_match(winner_part, pk["opp"]):
-                res = "LOSS"
-        if not res:
-            continue
+    inn1 = scores[0]
+    runs = int(inn1.get("r", 0))
+    wkts = int(inn1.get("w", 0))
+    overs_raw = float(inn1.get("o", 0.0))
+    overs_dec = ov_to_dec(overs_raw)
+    if overs_dec < pp_gate or overs_dec >= eff_max_ov - 1.0:
+        return
 
-        o1 = float(pk["odds"])
-        pnl = round(o1 - 1.0, 2) if res == "WIN" else (0.0 if res == "PUSH" else -1.0)
-        pk["status"], pk["pnl"], pk["final"] = res, pnl, st_txt
-        st = state["stats"]
-        st["w" if res == "WIN" else ("p" if res == "PUSH" else "l")] += 1
-        st["units"] = round(st["units"] + pnl, 2)
-        icon = "✅" if res == "WIN" else ("➖" if res == "PUSH" else "❌")
-        settled.append(
-            f"{icon} <b>{esc(pk['team'])} ML</b> @ <code>{o1}</code> ({esc(pk['stage'])}) ➔ <code>{res} ({pnl:+.2f}u)</code>\n"
-            f"   Final: {esc(st_txt)}"
-        )
+    crr = round(runs / max(overs_dec, 0.1), 2)
+    cache = m.get("cached_pre_toss", {})
+    par_mean = float(cache.get("par_mean") or (265.0 if is_odi else (152.0 if m["is_womens"] else 164.0)))
+    par_std = float(cache.get("par_std") or (22.0 if is_odi else 14.5))
+    scaled_par = par_mean * (eff_max_ov / (50.0 if is_odi else 20.0))
 
-    if settled:
-        st = state["stats"]
-        decided = st["w"] + st["l"]
-        wr = round((st["w"] / decided) * 100.0, 1) if decided else 0.0
-        roi = round((st["units"] / max(decided, 1)) * 100.0, 1)
-        tg(
-            "📊 <b>CRICKET AUTO PAPER-TRADING SCORECARD</b>\n\n"
-            + "\n".join(settled)
-            + f"\n\n<blockquote>🏆 <b>All-Time Cricket Virtual Record:</b> <code>{st['w']}W - {st['l']}L - {st['p']}P</code> "
-              f"| Win Rate: <b><code>{wr}%</code></b> | Net P/L: <b><code>{st['units']:+.2f}u</code></b> (ROI: <code>{roi:+.1f}%</code>)</blockquote>"
-        )
+    rem_ov = max(eff_max_ov - overs_dec, 0.0)
+    w_fac = DLS_W[min(wkts, 10)]
+    revised_full = runs + (rem_ov * max(crr * 0.94, 5.2 if is_odi else 6.2) * w_fac)
+    lo_f, hi_f, lean_f = session_lean(revised_full, scaled_par, max(6.0, par_std * 0.75))
+
+    m.setdefault("cached_pre_toss", {})["actual_pp1_runs"] = runs
+    dls_tag = " • 🌧️ SHORTENED" if is_dls else ""
+    msg = (
+        f"⚡ <b>1ST INN POWERPLAY REVIEW ({overs_raw} OV{dls_tag})</b>\n"
+        f"🏏 <b>{esc(inn1.get('inning', m['team_a']))}:</b> <code>{runs}/{wkts}</code> • CRR: <code>{crr}</code>\n\n"
+        f"🔄 <b>REVISED 1ST INNINGS PROJECTION ({int(eff_max_ov)} OV)</b>\n"
+        f"• <b>Final 1st Inn Total:</b> Expected <code>{lo_f}–{hi_f}</code> ➔ Lean: {lean_f}\n\n"
+        f"<blockquote>📈 <b>Momentum:</b> At <code>{runs}/{wkts}</code> ({overs_raw} ov), projected par is <code>{int(round(revised_full))}</code> vs baseline <code>{int(round(scaled_par))}</code>.</blockquote>"
+    )
+    if send_telegram(msg):
+        m["sent"]["pp_review"] = True
 
 
-# ==================== GEMINI REPORT GENERATOR ====================
-def call_gemini(prompt, markers):
-    for model in (PRIMARY_MODEL, FALLBACK_MODEL):
-        for use_search in (True, False):
-            payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.25}}
-            if use_search:
-                payload["tools"] = [{"google_search": {}}]
-            try:
-                r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", headers={"x-goog-api-key": GEM}, json=payload, timeout=90)
-                if r.ok:
-                    txt = "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"]["parts"]).strip()
-                    if txt and all(m in txt for m in markers):
-                        return txt
-            except Exception:
-                pass
-    return None
+def run_session4_innings_break(m, state, odds_events, rss_titles=None):
+    live = fetch_single_match_live(m, state, rss_titles)
+    scores = live.get("score") or []
+    status = str(live.get("status") or "")
+    st_low = status.lower()
+    if not scores:
+        return
 
+    is_odi = m["match_type"] == "ODI"
+    std_ov = 50.0 if is_odi else 20.0
+    inn1 = scores[0]
+    inn1_overs = ov_to_dec(inn1.get("o", 0.0))
+    inn1_wkts = int(inn1.get("w", 0))
 
-def generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt, base_rules, mpack, event_reason="", sniper=None):
-    vs = " vs ".join(m["teams"]) or m["name"]
-    t1 = m["teams"][0] if len(m["teams"]) >= 1 else "Team 1"
-    t2 = m["teams"][1] if len(m["teams"]) >= 2 else "Team 2"
-    toss_impact, home_bias, expected_call = base_rules
-    mins = (start - NOW).total_seconds() / 60
-    toss_done = ("won toss" in info["toss"].lower()) or info["started"] or stage_key == "prematch" or (stage_key == "preview" and mins <= 25)
-    is_pretoss = (stage_key == "toss") or (stage_key == "preview" and not toss_done)
+    target, eff_max_ov, is_dls = detect_dls_and_target(m, live)
+    is_break = (len(scores) >= 2) or (inn1_overs >= eff_max_ov - 0.5) or (inn1_wkts >= 10) or ("break" in st_low) or ("need" in st_low)
+    if not is_break or not target:
+        return
 
-    stage_labels = {
-        "toss": "Pre-Toss Strategy Blueprint (~50m Pre-Match)",
-        "prematch": "Post-Toss Confirmed XI & Full Session",
-        "6ov": "1st Inn • Live 6-Over PP Pulse",
-        "10ov": "1st Inn • Live 10-Over Pulse",
-        "break": "1st Innings Break • 2nd Inn Session & Chase",
-        "2nd_6ov": "2nd Inn • Live 6-Over Chase Pulse",
-        "2nd_10ov": "2nd Inn • Live 10-Over Chase Pulse",
-        "momentum": f"LIVE MOMENTUM ALERT • {event_reason}",
-        "preview": "Live In-Play Snapshot" if info["started"] else ("Post-Toss Confirmed XI Snapshot" if toss_done else "Pre-Toss Strategy Snapshot")
-    }
-    stage_title = f"🎯 A+ SNIPER SHOT — {sniper['reason']}" if sniper else stage_labels.get(stage_key, stage_key)
+    first_score = int(inn1.get("r", 0))
+    req_rr = round(target / max(eff_max_ov, 1.0), 2)
+    cache = m.get("cached_pre_toss", {})
+    par_mean = float(cache.get("par_mean") or (265.0 if is_odi else (152.0 if m["is_womens"] else 164.0)))
+    par_std = float(cache.get("par_std") or (22.0 if is_odi else 14.5))
+    wx = {"ok": cache.get("wx_ok", False), "txt": cache.get("wx_txt", "Dew Unknown"), "high_dew": cache.get("dew_high", False)}
 
-    if is_pretoss:
-        toss_header = "━━━ 🪙 **TOSS STRATEGY, STAKES & SCENARIOS** ━━━"
-        toss_block = f"""1. **Toss Impact & Dependency:** {toss_impact} ({wx['txt']}) | **Needs Toss More:** **`Team Name`** — (1 crisp line on why this team relies more on winning the toss)
-2. **Formation & Captaincy DNA:**
-• 🔵 **`{t1}`** (Real Captain — Last-5 Toss: X/5, Pref: Bat/Bowl) — (core squad strength/formation)
-• 🟠 **`{t2}`** (Real Captain — Last-5 Toss: Y/5, Pref: Bat/Bowl) — (core squad strength/formation)
-3. **Pitch History & Table Stakes:** (recent pitch behavior at {m['venue']} + tournament/NRR stakes influencing captaincy)
-4. **Conditional Scenarios (If–Then Blueprint):**
-• **If 🔵 `{t1}` wins ➔ `Bat / Bowl First` (XX%):** (how 1st-inn session & match edge shift)
-• **If 🟠 `{t2}` wins ➔ `Bat / Bowl First` (YY%):** (how 1st-inn session & match edge shift)
-5. **Match Market Sentiment (H2H):** {flow_txt}
+    inn1_name = str(inn1.get("inning", ""))
+    chasing_team = m["team_b"] if team_match(m["team_a"], inn1_name) else m["team_a"]
+    defending_team = m["team_a"] if chasing_team == m["team_b"] else m["team_b"]
 
-> 🪙 **Pre-Toss Blueprint:** Coin Flip: `50/50 (Skip)` | Highest Toss Need: **`Team Name`** | Expected Call: **`{expected_call} (XX%)`**"""
-        markers = ["Pre-Toss Blueprint", "Expected Match Winner", "Session & Chase Favorite"]
+    ratio = min(max(eff_max_ov / std_ov, 0.25), 1.0)
+    scaled_par = par_mean * ratio
+    eff_par = (0.45 * first_score) + (0.55 * scaled_par)
+    scale = max(8.0, (26.0 if is_odi else 18.0) * math.sqrt(ratio))
+    dew_runs = (6.0 if wx["high_dew"] else 0.0) * ratio
+    logit = ((eff_par + dew_runs - target) / scale) + (0.18 if wx["high_dew"] else 0.0)
+    raw_chase_p = round(min(max(100.0 / (1.0 + math.exp(-logit)), 12.0), 88.0), 1)
+    base_prob_a = raw_chase_p if chasing_team == m["team_a"] else round(100.0 - raw_chase_p, 1)
+
+    fresh_events = fetch_odds_events(state, sport_key=m.get("odds_sport_key")) if m.get("odds_sport_key") else odds_events
+    odds_a, odds_b = get_h2h_from_events(m, fresh_events)
+    true_a, true_b, _ = devig_odds(odds_a, odds_b)
+    odds_ok = bool(odds_a and odds_b and true_a is not None)
+
+    if is_dls:
+        prob_a, squad_summary, veto_team, squad_note, ai_ok = base_prob_a, "Rain-shortened match — high variance.", "None", "", True
     else:
-        toss_note = info["toss"] if "won toss" in info["toss"].lower() else "USE GOOGLE SEARCH to fetch the exact live confirmed toss winner, decision & Playing XI for today's match"
-        toss_header = "━━━ 🔬 **SNIPER AUDIT & CONFIRMED TOSS** ━━━" if sniper else "━━━ 🪙 **CONFIRMED TOSS & MARKET REACTION** ━━━"
-        toss_block = f"""1. **Confirmed Toss & Live Score:** **`{toss_note}`** | Score: `{info['score_txt']}`
-2. **Post-Toss Overreaction Check:** {over_txt} — (note if public overreacted or pricing stayed calm)
-3. **Public vs. Traders' Sentiment:** {flow_txt}
-4. **Condition & Tactical Shift:** (1-2 crisp sentences on {wx['txt']}, pitch behavior, confirmed XI impact, and why the model edge holds)"""
-        markers = ["Expected Match Winner", "Session & Chase Favorite"]
+        prob_a, squad_summary, veto_team, squad_note, ai_ok = run_squad_audit_and_fair_prob(
+            m, live, wx, "1st Innings Break", base_prob_a,
+            target_info=f"{defending_team} scored {first_score}/{inn1_wkts} ({inn1.get('o',0)} ov); {chasing_team} needs {target} in {eff_max_ov:.0f} overs (RRR {req_rr})."
+        )
+    prob_b = round(100.0 - prob_a, 1)
+    chase_win_p = prob_a if chasing_team == m["team_a"] else prob_b
+    def_win_p = round(100.0 - chase_win_p, 1)
 
-    if mpack["mode"] == "dls_locked":
-        session_section = f"""━━━ ⚡ **SESSION & CHASE FAVORITES (DLS MATH LOCKED)** ━━━
-{chr(10).join(mpack['lines'])}
-• **Match Outcome Split:** **Chasing Win:** {mpack['chase_p']:.1f}% | **Defending Win:** {mpack['defend_p']:.1f}%
-• **Session & Chase Basis:** (1-2 crisp sentences explaining pitch, dew, wickets-in-hand & RRR behind these DLS-locked projections)
+    fav_team = chasing_team if chase_win_p >= def_win_p else defending_team
+    fav_prob = max(chase_win_p, def_win_p)
+    fav_odds = (odds_a if fav_team == m["team_a"] else odds_b) if odds_ok else None
+    fav_mkt = (true_a if fav_team == m["team_a"] else true_b) if odds_ok else None
+    fav_edge = round(fav_prob - fav_mkt, 1) if fav_mkt is not None else 0.0
 
-> 🏆 **Session & Chase Favorite:** {mpack['fav']}"""
-        math_rule = "STRICT MATH LOCK: Copy EVERY Python-calculated number, Line, Range, Over/Under %, Chase/Defend %, and Favorite callout VERBATIM without changing any digit."
+    sessions = build_direct_sessions(
+        par_mean, par_std, eff_max_ov=eff_max_ov, is_odi=is_odi,
+        is_chasing=True, target=target, dew_high=wx["high_dew"]
+    )
+    sess_lines = "\n".join(f"• <b>{s['label']}:</b> Expected <code>{s['lo']}–{s['hi']}</code> ➔ Lean: {s['lean']}" for s in sessions)
+    if not sess_lines:
+        sess_lines = f"• <b>Short Chase Cap:</b> All runs strictly capped at Target <code>{target}</code>."
+
+    squad_vetoed = (veto_team.lower() != "none") and team_match(fav_team, veto_team)
+
+    if is_dls:
+        verdict = "⛔ <b>MATCH CALL: HARD SKIP (DLS / RAIN VARIANCE)</b>\n<i>↳ Rain-shortened overs create extreme lottery variance — A+ Sniper disabled.</i>"
+    elif squad_vetoed:
+        verdict = f"⛔ <b>MATCH CALL: SKIP (SQUAD RISK)</b>\n<i>↳ Squad Audit Veto on {esc(fav_team)}: {esc(squad_note)}</i>"
+    elif (odds_ok and fav_prob >= 72.0 and fav_edge >= 4.0) or (odds_ok and fav_prob >= 78.0 and fav_edge >= -2.0) or (not odds_ok and fav_prob >= 78.0 and ai_ok):
+        odds_tag = f" @ <code>{fav_odds}</code>" if fav_odds else ""
+        verdict = (
+            f"🎯 <b>A+ SNIPER PICK: <code>{esc(fav_team)} WIN</code>{odds_tag} ({fav_prob}%)</b>\n"
+            f"<i>↳ {esc(squad_note or 'Clear target-vs-par gap + Squad Audit passed.')}</i>"
+        )
+        if not any(p.get("type") == "winner" and team_match(p.get("team", ""), fav_team) for p in m["sniper_picks"]):
+            m["sniper_picks"].append({
+                "label": f"{fav_team} WIN" + (f" @ {fav_odds}" if fav_odds else ""),
+                "conf": int(round(fav_prob)),
+                "type": "winner",
+                "team": fav_team,
+                "odds": fav_odds
+            })
     else:
-        fmt = (m.get("type") or "").upper()
-        s_lines = (
-            "• **10-Over PP (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%\n"
-            "• **25-Over Session (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%\n"
-            "• **1st Innings Par (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%"
-            if "ODI" in fmt else
-            "• **6-Over PP (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%\n"
-            "• **10-Over Session (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%\n"
-            "• **1st Innings Par (Line: XX.5):** XX – YY | **Over:** XX% | **Under:** YY%"
-        )
-        session_section = f"""━━━ ⚡ **SESSION & CHASE FAVORITES (VENUE-AWARE)** ━━━
-{s_lines}
-• **Match Outcome Split:** **Chasing Win:** XX% | **Defending Win:** YY%
-• **Session & Chase Basis:** (1-2 crisp sentences grounded in real {m['venue']} average scores, boundary size, pitch, dew, and confirmed batting lineup)
+        verdict = f"⛔ <b>MATCH CALL: SKIP (NO A+ SNIPER EDGE)</b>\n<i>↳ Target ({target}) is too close to Adaptive Par ({int(round(eff_par))}) or lacks clear market edge.</i>"
 
-> 🏆 **Session & Chase Favorite:** **`Best Session Pick (Over/Under Line)`** (XX%) | Match: **`Chasing/Defending Win (XX%)`**"""
-        math_rule = f"VENUE-AWARE SESSION RULE: Use Google Search for real {m['venue']} scoring averages and recent matches at this exact venue to set realistic Session Lines, Over/Under % (summing to 100%), and Chase/Defend % (summing to 100%)."
+    hdr = "🌗 <b>1ST INNINGS BREAK • 🌧️ RAIN-SHORTENED (DLS)</b>" if is_dls else "🌗 <b>1ST INNINGS BREAK • DIRECT CALL</b>"
+    odds_line = (
+        f"• <b>Live Break Odds:</b> {esc(m['team_a'])} <code>{odds_a}</code> vs {esc(m['team_b'])} <code>{odds_b}</code>"
+        if odds_ok else "• <b>Live Break Odds:</b> <code>Suspended / N/A</code> (No fake odds used)"
+    )
 
-    if sniper:
-        prob_block = f"""━━━ 📈 **DLS MATH VS MARKET (SNIPER LOCKED)** ━━━
-• **Market Odds (H2H):** {odds_txt}
-• **Model vs. Market:** 🔵 **`{t1}`** `{sniper['model_t1_p']}%` vs 🟠 **`{t2}`** `{sniper['model_t2_p']}%` | Verified Gap: **`+{sniper['edge']}%`**
-• **Why Market Is Wrong:** (1-2 sharp sentences explaining why public/market odds mispriced `{sniper['team']}`)
+    msg = (
+        f"{hdr}\n"
+        f"🔵 <b>{esc(defending_team)}</b> <code>{first_score}/{inn1_wkts} ({inn1.get('o',0)} ov)</code> ➔ "
+        f"🟠 <b>{esc(chasing_team)}</b> needs <b><code>{target}</code></b> in <code>{eff_max_ov:.0f}</code> ov (<code>RRR {req_rr}</code>)\n"
+        f"🏟️ <b>Pitch &amp; Dew:</b> Adaptive Par <code>{int(round(eff_par))}</code> | {esc(wx['txt'])}\n"
+        f"👥 <b>Squad Audit:</b> <i>{esc(squad_summary)}</i>\n"
+        f"{odds_line}\n"
+        f"📊 <b>Model Win Prob:</b> {esc(chasing_team)} <code>{chase_win_p}%</code> vs {esc(defending_team)} <code>{def_win_p}%</code>\n\n"
+        f"🔢 <b>2ND INNINGS SESSIONS (Capped at Target {target})</b>\n"
+        f"{sess_lines}\n\n"
+        f"<blockquote>{verdict}</blockquote>\n"
+        f"{health_badge(wx_ok=wx['ok'], squad_ok=ai_ok, odds_ok=odds_ok)}"
+    )
+    if send_telegram(msg):
+        m["sent"]["innings_break"] = True
 
-> 🎯 **Expected Match Winner:** **`{sniper['team']} ML @ {sniper['odds']}`** (`{sniper['model_p']}%`) — **A+ SNIPER (AUTO-LOGGED 1.00u PAPER)**"""
-        sniper_lock_rule = f"SNIPER LOCK: Copy the exact locked Sniper probabilities ({t1} {sniper['model_t1_p']}% vs {t2} {sniper['model_t2_p']}%) and Expected Match Winner line VERBATIM."
+
+def run_session5_post_match_review(m, state, rss_titles=None):
+    live = fetch_single_match_live(m, state, rss_titles)
+    status = str(live.get("status") or "")
+    espn_line = str(live.get("_espn_line") or "")
+    st_low = (status or espn_line).lower()
+    match_ended = bool(live.get("matchEnded")) or (
+        bool(live.get("matchStarted") or live.get("score"))
+        and any(k in st_low for k in ("won by", "won ", "no result", "abandoned", "tied"))
+    )
+    if not match_ended:
+        return
+
+    scores = live.get("score") or []
+    score_summary = " | ".join(f"{s.get('inning','')}: {s.get('r',0)}/{s.get('w',0)} ({s.get('o',0)})" for s in scores)
+    picks = m.get("sniper_picks", [])
+    record = state.setdefault("paper_record", {"wins": 0, "losses": 0, "net_units": 0.0})
+
+    review_lines = []
+    if not picks:
+        review_lines.append("• <i>No A+ Sniper call in this match (Disciplined SKIP).</i>")
     else:
-        prob_block = f"""━━━ 📈 **MATCH PROBABILITY & EDGE** ━━━
-• **Market Odds (H2H):** {odds_txt}
-• **Model vs. Market:** 🔵 **`{t1}`** XX.X% vs 🟠 **`{t2}`** YY.Y% | Gap: +/-X.X%
-• **Match Edge Explanation:** (1-2 crisp sentences explaining the edge from XI depth, toss/pitch, home bias, and live position)
-
-> 🎯 **Expected Match Winner:** **`Winning Team Name`** (XX.X%) — WATCHLIST / NO A+ SNIPER EDGE YET"""
-        sniper_lock_rule = f"Ensure {t1}% + {t2}% = 100%."
-
-    prompt = f"""You are a quantitative cricket trading analyst. Write a complete, sharp 3-block analytical report for **{stage_title}** in clean English.
-
-DATA:
-- Match: {vs} ({m.get('type', '')})
-- Teams: Team 1 = {t1} (🔵) | Team 2 = {t2} (🟠)
-- Venue: {m['venue']}
-- Live Score / Status: {info['score_txt']} ({info['status']})
-- Live Event Trigger: {event_reason or 'Scheduled Stage'}
-- Toss Info: {info['toss']}
-- Playing XI: {info['xi']}
-- Local Weather & Dew: {wx['txt']}
-- Toss Baseline: {toss_impact} | Expected Call: {expected_call}
-- Home Bias Rule: {home_bias}
-- Market Odds: {odds_txt}
-- Market Flow: {flow_txt}
-- Post-Toss Overreaction: {over_txt}
-- Math Audit: {mpack['note']}
-
-STRICT RULES:
-- 100% ENGLISH ONLY. NEVER write "Captain A" or "Captain B" — ALWAYS use Google Search for real captain names, confirmed toss, and Playing XI of {t1} and {t2}.
-- HONEST MARKET RULE: If Market Flow says "Market Unopened", NEVER invent sharp money or public betting leans.
-- NO FAKE COIN-FLIP PREDICTIONS: Coin flip is always 50/50 (Skip).
-- {math_rule}
-- {sniper_lock_rule}
-- Follow this EXACT 3-block structure:
-
-{toss_header}
-{toss_block}
-
-{prob_block}
-
-{session_section}"""
-
-    return call_gemini(prompt, markers)
-
-
-def to_html(t):
-    lines = []
-    for raw_line in t.splitlines():
-        stripped = raw_line.strip()
-        is_quote = stripped.startswith(">")
-        clean = stripped.lstrip(">").strip() if is_quote else raw_line
-        line = esc(clean)
-        line = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", line)
-        line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
-        line = re.sub(r"__(.+?)__", r"<u>\1</u>", line)
-        line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", line)
-        line = line.replace("`", "").replace("**", "")
-        lines.append(f"<blockquote>{line}</blockquote>" if is_quote else line)
-    return "\n".join(lines)
-
-
-def label(m):
-    t, s = m.get("type", ""), m.get("series", "")
-    return f"{t} • {s}" if s else t
-
-
-def dispatch_card(m, start, stage_key, state, events, live_obj=None, espn_obj=None, info=None, mark_sent=True, event_reason=""):
-    saved = state["odds"].get(m["id"], {})
-    probs = probs_for(m, events or []) or saved
-    if probs:
-        state["odds"][m["id"]] = probs
-        state["open"].setdefault(m["id"], probs)
-        if stage_key == "toss":
-            state["pretoss_odds"][m["id"]] = probs
-    pretoss = state["pretoss_odds"].get(m["id"]) if stage_key != "toss" else None
-    odds_txt, flow_txt, over_txt = analyze_market_flow(state["open"].get(m["id"], {}), probs, pretoss)
-
-    if info is None:
-        need_api = stage_key in ("prematch", "preview", "break", "momentum") or not m.get("venue")
-        info = match_details(m["id"], live_obj, espn_obj, state, fetch_api=need_api)
-        if info["venue"] and not m.get("venue"):
-            m["venue"] = info["venue"]
-    if info.get("ended"):
-        state.setdefault("ended", {})[m["id"]] = True
-        return False
-
-    t1 = m["teams"][0] if len(m["teams"]) >= 1 else m["name"]
-    t2 = m["teams"][1] if len(m["teams"]) >= 2 else ""
-    wx = weather_info(m["venue"], start)
-    mkt = normalize_market(t1, t2, probs) if t2 else None
-    pretoss_mkt = normalize_market(t1, t2, pretoss) if (t2 and pretoss) else None
-
-    # 1. Pre-Toss Conditional Sniper Plan (Silent Mode)
-    if stage_key == "toss" and SILENT_SNIPER_ONLY:
-        plans = build_conditional_toss_plan(m, mkt, wx, state)
-        if mark_sent:
-            state["sent"].setdefault(m["id"], []).append("toss")
-        if plans:
-            return send_conditional_toss_card(m, start, plans, wx)
-        return False
-
-    mpack = compute_math_pack(m, info, wx, stage_key)
-
-    # 2. Evaluate Sniper Trigger (Post-Toss Lock / 1st Inn Break / 2nd Inn 10-Over)
-    sniper = evaluate_cricket_sniper(stage_key, m, info, wx, mpack, mkt, pretoss_mkt, state)
-
-    # 3. Live Hedge Check (2nd Innings)
-    check_live_cricket_hedge(m, info, wx, mkt, state)
-
-    # 4. Silent Mode Filter (Skip non-sniper cards on automated runs; allow manual preview)
-    if SILENT_SNIPER_ONLY and stage_key != "preview" and not sniper:
-        if mark_sent and stage_key != "momentum":
-            state["sent"].setdefault(m["id"], []).append(stage_key)
-        return False
-
-    analysis = generate_report(m, start, stage_key, wx, info, odds_txt, flow_txt, over_txt, research_baseline(m, wx), mpack, event_reason, sniper=sniper)
-    vs_styled = f"🔵 <b><code>{esc(t1)}</code></b> vs 🟠 <b><code>{esc(t2)}</code></b>" if t2 else f"<b>{esc(m['name'])}</b>"
-    mins = (start - NOW).total_seconds() / 60
-    toss_done = ("won toss" in info["toss"].lower()) or info["started"] or mins <= 25
-    badge = {
-        "toss": "Pre-Toss Blueprint",
-        "prematch": "Post-Toss Lock",
-        "6ov": "1st Inn • 6-Over PP Pulse",
-        "10ov": "1st Inn • 10-Over Pulse",
-        "break": "1st Inn Break",
-        "2nd_6ov": "2nd Inn • 6-Over Chase Pulse",
-        "2nd_10ov": "2nd Inn • 10-Over Chase",
-        "momentum": f"⚡ {event_reason}",
-        "preview": "🔴 Live Snapshot (Preview)" if info["started"] else ("Post-Toss Snapshot" if toss_done else "Pre-Toss Snapshot")
-    }.get(stage_key, stage_key)
-
-    title_line = (
-        f"🎯 <b>CRICKET A+ SNIPER SHOT • <code>{esc(badge)}</code></b>\n🏏 <b>{esc(label(m))}</b>"
-        if sniper else
-        f"🏏 <b>{esc(label(m))}</b>"
-    )
-    head = (
-        f"{title_line}\n"
-        f"{vs_styled}\n"
-        f"🏟️ {esc(m['venue'])} | ⏰ <code>{badge}</code> (<code>{start.astimezone(BDT):%d %b • %I:%M %p BDT}</code>)\n\n"
-    )
-    fallback_body = (
-        f"1. <b>Toss:</b> <code>{esc(info['toss'])}</code>\n"
-        f"2. <b>Score:</b> <code>{esc(info['score_txt'])}</code>"
-        + (f"\n3. <b>Sniper Call:</b> <code>{esc(sniper['team'])} ML @ {sniper['odds']} (+{sniper['edge']}%)</code>" if sniper else "")
-    )
-    body = to_html(analysis[:3400]) if analysis else fallback_body
-    ok = tg(head + body)
-    if ok:
-        if sniper and stage_key != "preview":
-            log_cricket_paper_pick(m, start, sniper, state)
-        if mark_sent and stage_key != "momentum":
-            state["sent"].setdefault(m["id"], []).append(stage_key)
-        if stage_key == "momentum":
-            meta = state["mom_meta"].get(m["id"], {"cnt": 0, "ts": ""})
-            state["mom_meta"][m["id"]] = {"cnt": meta["cnt"] + 1, "ts": NOW.isoformat()}
-    return ok
-
-
-def build_schedule_lines(todays, live_map, rss_items, state):
-    lines = []
-    for i, m in enumerate(todays, 1):
-        st = match_status_tag(m, live_map, rss_items, state)
-        tag = "🔴 LIVE" if st == "live" else ("✅ Ended" if st == "ended" else "⏳")
-        t = parse(m["start"]).astimezone(BDT).strftime("%I:%M %p")
-        vs = " vs ".join(m["teams"]) or m["name"]
-        lines.append(
-            f"{i}. {tag} <b>{esc(label(m))}</b>\n"
-            f"   🔥 <b><code>{esc(vs)}</code></b> | ⏰ <code>{t} BDT</code> | 🏟️ {esc(m['venue'])}"
-        )
-    return lines
-
-
-def main():
-    state = load_state()
-    for k in ("sent", "odds", "open", "pretoss_odds", "toss_info", "snap", "mom_meta", "poll_ts", "ended", "results", "paper_picks", "sniper_triggers", "hedge_sent"):
-        state.setdefault(k, {})
-
-    is_manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-    matches = fetch_matches(state, force=is_manual)
-    live_map = fetch_live_map(matches, state, force=is_manual)
-    has_active = any(
-        not state["ended"].get(m["id"]) and -220 <= (parse(m["start"]) - NOW).total_seconds() / 60 <= 30
-        for m in matches
-    )
-    rss_items = fetch_espn_rss() if (has_active or is_manual) else []
-    events = fetch_odds()
-
-    # 0. Auto-settle finished Paper-Trading Sniper Picks
-    settle_cricket_paper_picks(state, live_map, rss_items)
-
-    bdt_now = NOW.astimezone(BDT)
-    today = bdt_now.date().isoformat()
-    todays = [m for m in matches if parse(m["start"]).astimezone(BDT).date().isoformat() == today]
-    st_rec = state["stats"]
-    rec_str = f"{st_rec['w']}W-{st_rec['l']}L ({st_rec['units']:+.2f}u)"
-    need_sched = (
-        state.get("schedule_date") != today
-        or (state.get("schedule_count", 0) == 0 and len(todays) > 0)
-    )
-
-    if need_sched and (todays or (bdt_now.hour >= 6 and not API_DIAG["reason"])):
-        head = (
-            f"📅 <b>TODAY'S MAJOR CRICKET SCHEDULE (<code>{bdt_now:%d %b %Y}</code>)</b>\n"
-            f"📊 <code>Matches: {len(todays)} | Mode: {'Silent A+ Sniper' if SILENT_SNIPER_ONLY else 'Full'} | Paper: {rec_str}</code>\n\n"
-        )
-        lines = build_schedule_lines(todays, live_map, rss_items, state)
-        if tg(head + ("\n".join(lines) if lines else "No major matches scheduled today.")):
-            state["schedule_date"] = today
-            state["schedule_count"] = len(todays)
-    elif is_manual:
-        lines = build_schedule_lines(todays, live_map, rss_items, state)
-        sched_txt = ("\n\n" + "\n".join(lines)) if lines else "\n\nNo remaining matches today."
-        tg(
-            f"✅ <b>Cricket Sniper Engine (v18) Active</b>\n"
-            f"🎯 <code>Mode: {'Silent A+ Sniper' if SILENT_SNIPER_ONLY else 'Full'} | Paper: {rec_str}</code>\n"
-            f"📡 <code>CricAPI: {API_DIAG['hits']}/{API_DIAG['limit']} | Matches: {len(matches)} | ESPN RSS: {len(rss_items)}</code>"
-            f"{sched_txt}"
-        )
-
-    cards_sent = 0
-    for m in matches:
-        mid = m["id"]
-        if state["ended"].get(mid) or match_status_tag(m, live_map, rss_items, state) == "ended":
-            state["ended"][mid] = True
-            continue
-        start = parse(m["start"])
-        mins = (start - NOW).total_seconds() / 60
-        sent = state["sent"].setdefault(mid, [])
-        live_obj = live_map.get(mid)
-        espn_obj = parse_espn_score(m, rss_items) if rss_items else None
-        stage_key, info, ev_reason = None, None, ""
-
-        # 1. Pre-Toss Conditional Sniper Plan (~40-65m pre-match)
-        if 40 < mins <= 65 and "toss" not in sent:
-            stage_key = "toss"
-
-        # 2. Fast Post-Toss Lock (instant on toss OR fallback at 22m pre-match)
-        elif -5 <= mins <= 36 and "prematch" not in sent:
-            last_p = state["poll_ts"].get(mid)
-            if is_manual or not last_p or NOW - parse(last_p) >= timedelta(minutes=5) or mins <= 22:
-                info = match_details(mid, live_obj, espn_obj, state, fetch_api=True)
-                state["poll_ts"][mid] = NOW.isoformat()
-                if info["ended"]:
-                    state["ended"][mid] = True
-                    continue
-                if "won toss" in info["toss"].lower() or mins <= 22:
-                    stage_key = "prematch"
-
-        # 3. Live In-Play (Break, 2nd Inn 10-Over, Momentum + Hedge Radar)
-        elif -220 <= mins <= 2:
-            stage_src = live_obj
-            if not stage_src:
-                gap_m = 5 if in_break_window(m) else 12
-                last_p = state["poll_ts"].get(mid)
-                if is_manual or not last_p or NOW - parse(last_p) >= timedelta(minutes=gap_m):
-                    info = match_details(mid, None, espn_obj, state, fetch_api=True)
-                    state["poll_ts"][mid] = NOW.isoformat()
-                    if info["ended"]:
-                        state["ended"][mid] = True
-                        continue
-                    stage_src = info
-            stage_key = detect_inplay_stage(m.get("type", ""), stage_src, sent)
-            if not stage_key:
-                ev_reason = detect_momentum_event(mid, live_obj or info, espn_obj, state)
-                if ev_reason:
-                    if info is None or not info["score"]:
-                        info = match_details(mid, live_obj, espn_obj, state, fetch_api=True)
-                    if info["ended"]:
-                        state["ended"][mid] = True
-                        continue
-                    stage_key = "momentum"
-                elif mid in state["paper_picks"] and state["paper_picks"][mid].get("status") == "pending":
-                    # ট্র্যাকড স্নাইপার ম্যাচ ২য় ইনিংসে চললে প্রতি চেকেই Hedge উইন্ডো দেখবে
-                    h_info = info or match_details(mid, live_obj, espn_obj, state, fetch_api=False)
-                    probs = probs_for(m, events or []) or state["odds"].get(mid, {})
-                    t1, t2 = m["teams"][0], m["teams"][1]
-                    check_live_cricket_hedge(m, h_info, weather_info(m["venue"], start), normalize_market(t1, t2, probs), state)
+        winner_text = st_low.split(" won")[0].strip() if " won" in st_low else ""
+        for idx, p in enumerate(picks, 1):
+            won = None
+            if p.get("type") == "winner" and winner_text:
+                won = team_match(p["team"], winner_text)
+            real_odds = p.get("odds")
+            if won is True:
+                record["wins"] += 1
+                if real_odds:
+                    pnl = round(float(real_odds) - 1.0, 2)
+                    record["net_units"] = round(record["net_units"] + pnl, 2)
+                    review_lines.append(f"{idx}. <b>{esc(p['label'])} ({p['conf']}%)</b> → ✅ <b>WON (+{pnl:.2f}u)</b>")
+                else:
+                    review_lines.append(f"{idx}. <b>{esc(p['label'])} ({p['conf']}%)</b> → ✅ <b>WON</b>")
+            elif won is False:
+                record["losses"] += 1
+                if real_odds:
+                    record["net_units"] = round(record["net_units"] - 1.0, 2)
+                    review_lines.append(f"{idx}. <b>{esc(p['label'])} ({p['conf']}%)</b> → ❌ <b>LOST (-1.00u)</b>")
+                else:
+                    review_lines.append(f"{idx}. <b>{esc(p['label'])} ({p['conf']}%)</b> → ❌ <b>LOST</b>")
             else:
-                detect_momentum_event(mid, live_obj or info, espn_obj, state)
+                review_lines.append(f"{idx}. <b>{esc(p['label'])} ({p['conf']}%)</b> → ⚪ <b>VOID / NO RESULT</b>")
 
-        if stage_key:
-            if dispatch_card(m, start, stage_key, state, events, live_obj=live_obj, espn_obj=espn_obj, info=info, mark_sent=True, event_reason=ev_reason):
-                cards_sent += 1
+    total = record["wins"] + record["losses"]
+    acc = round((record["wins"] / total) * 100.0, 1) if total else 0.0
 
-    # Manual test preview (running or upcoming match)
-    if is_manual and cards_sent == 0 and matches:
-        live_cands = [m for m in matches if match_status_tag(m, live_map, rss_items, state) == "live"]
-        soon_cands = [m for m in matches if 0 < (parse(m["start"]) - NOW).total_seconds() / 60 <= 65 and not state["ended"].get(m["id"])]
-        up_cands = [m for m in matches if match_status_tag(m, live_map, rss_items, state) == "upcoming"]
-        for cand in (live_cands + soon_cands + up_cands):
-            c_info = match_details(cand["id"], live_map.get(cand["id"]), parse_espn_score(cand, rss_items), state, fetch_api=True)
-            if c_info["ended"]:
-                state["ended"][cand["id"]] = True
-                continue
-            dispatch_card(cand, parse(cand["start"]), "preview", state, events, live_obj=live_map.get(cand["id"]), espn_obj=parse_espn_score(cand, rss_items), info=c_info, mark_sent=False)
-            break
+    msg = (
+        f"🏁 <b>MATCH ENDED &amp; A+ SNIPER REVIEW</b>\n"
+        f"🔵 <b>{esc(m['team_a'])}</b> vs 🟠 <b>{esc(m['team_b'])}</b>\n"
+        f"🏆 <b>Result:</b> <code>{esc(status or espn_line)}</code>\n"
+        f"📊 <b>Scorecard:</b> <i>{esc(score_summary or espn_line or 'Logged')}</i>\n\n"
+        f"📋 <b>THIS MATCH'S A+ SNIPER CALLS</b>\n"
+        f"{chr(10).join(review_lines)}\n\n"
+        f"<blockquote>📈 <b>A+ SNIPER RECORD:</b> <code>{record['wins']}W - {record['losses']}L</code> | "
+        f"Success Rate: <b><code>{acc}%</code></b> | Verified Odds Net: <code>{record['net_units']:+.2f}u</code></blockquote>"
+    )
+    if send_telegram(msg):
+        m["sent"]["post_match"] = True
 
-    pending_ids = {k for k, v in state["paper_picks"].items() if v.get("status") == "pending"}
-    keep = {m["id"] for m in matches} | pending_ids
-    for k in ("sent", "odds", "open", "pretoss_odds", "toss_info", "snap", "mom_meta", "poll_ts", "ended", "sniper_triggers", "hedge_sent"):
-        state[k] = {i: v for i, v in state[k].items() if i in keep}
-    save_state(state)
+
+# ==========================================
+# 9. MAIN EXECUTION (STRICT CREDIT-CAPPED GATEKEEPER)
+# ==========================================
+def main():
+    now_bdt = datetime.now(BDT)
+    today_str = now_bdt.strftime("%Y-%m-%d")
+    state = load_state()
+
+    is_new_day = state.get("schedule_date") != today_str
+    matches = state.get("matches", [])
+    odds_events = []
+
+    # 1. Midnight Discovery (Runs ONCE per BDT day — 2 CricAPI credits)
+    if is_new_day:
+        print(f"🌙 New BDT Day ({today_str} • {ENGINE_VERSION}): Locking 24h schedule...")
+        state["credits_used_today"] = 0
+        state["morning_sync_done"] = False
+        odds_events = fetch_odds_events(state, force=True)
+        discovered = fetch_daily_matches_bdt(today_str, state, odds_events)
+        state["schedule_date"] = today_str
+        state["matches"] = discovered
+        state["last_discovery_ts"] = now_bdt.isoformat()
+        save_state(state)
+        send_session0_daily_schedule(today_str, discovered, state)
+        matches = discovered
+
+    # 2. Single 9:00 AM Backup Sync ONLY if midnight returned 0 matches (or on manual run)
+    elif IS_MANUAL_RUN or (not matches and now_bdt.hour >= 9 and not state.get("morning_sync_done")):
+        odds_events = fetch_odds_events(state, force=IS_MANUAL_RUN)
+        discovered = fetch_daily_matches_bdt(today_str, state, odds_events)
+        prev_count = len(matches)
+        matches, added, time_fixed = merge_matches(matches, discovered)
+        state["matches"] = matches
+        state["last_discovery_ts"] = now_bdt.isoformat()
+        if now_bdt.hour >= 9:
+            state["morning_sync_done"] = True
+        save_state(state)
+        if added > 0 or time_fixed > 0 or (prev_count == 0 and IS_MANUAL_RUN):
+            send_session0_daily_schedule(today_str, matches, state)
+
+    if not matches:
+        print(f"💤 No active matches today ({now_bdt.strftime('%I:%M %p BDT')}). 0 credits used.")
+        return
+
+    # Auto-expire old matches (> 4.5h past start for T20, > 8.5h for ODI)
+    state_dirty = False
+    for m in matches:
+        sent = m.setdefault("sent", {})
+        for k in ("pre_toss", "toss_sessions", "pp_review", "innings_break", "post_match"):
+            sent.setdefault(k, False)
+        if not sent["post_match"] and is_match_expired(m, now_bdt):
+            sent["post_match"] = True
+            state_dirty = True
+
+    active_matches = [m for m in matches if not m["sent"]["post_match"]]
+    if not active_matches:
+        if state_dirty:
+            save_state(state)
+        print(f"💤 All today's matches completed/expired ({now_bdt.strftime('%I:%M %p BDT')}). 0 credits used.")
+        return
+
+    rss_titles = fetch_all_espn_rss()
+    any_action = False
+
+    # 3. STRICT CHECKPOINT + MAX-ATTEMPTS GATEKEEPER (Max 7–9 credits per match!)
+    for m in active_matches:
+        sent = m["sent"]
+        is_odi = m["match_type"] == "ODI"
+        shift = timedelta(minutes=int(m.get("delay_shift_min", 0)))
+        pre_toss_dt = datetime.fromisoformat(m["pre_toss_bdt"])
+        toss_dt = datetime.fromisoformat(m["toss_bdt"])
+        start_dt = datetime.fromisoformat(m["start_bdt"])
+        eff_start = start_dt + shift
+
+        pp_s, pp_e = (45, 95) if is_odi else (30, 65)
+        brk_s, brk_e = (195, 270) if is_odi else (85, 150)
+        end_s, end_e = (360, 510) if is_odi else (185, 270)
+
+        # Stage 1: Pure Pre-Toss Hints (25m before toss until toss time — max 1 attempt)
+        if not sent["pre_toss"] and (pre_toss_dt - timedelta(minutes=5) <= now_bdt <= toss_dt):
+            if can_poll_stage(m, "pre_toss", max_attempts=1, gap_min=15, now_bdt=now_bdt):
+                mark_stage_poll(m, "pre_toss", now_bdt)
+                run_session1_pre_toss(m, state, rss_titles=rss_titles)
+                any_action = True
+
+        # Stage 2: Confirmed Toss / Delay Update (toss time to eff_start + 40m — max 3 attempts, 15m gap)
+        elif not sent["toss_sessions"] and (toss_dt <= now_bdt <= eff_start + timedelta(minutes=40)):
+            if can_poll_stage(m, "toss", max_attempts=3, gap_min=15, now_bdt=now_bdt):
+                mark_stage_poll(m, "toss", now_bdt)
+                if not odds_events:
+                    odds_events = fetch_odds_events(state)
+                run_session2_confirmed_toss(m, state, odds_events, now_bdt, rss_titles=rss_titles)
+                any_action = True
+
+        # Stage 3: 1st Inn Powerplay Review (eff_start + 30m to +65m — max 2 attempts, 15m gap)
+        elif not sent["pp_review"] and (eff_start + timedelta(minutes=pp_s) <= now_bdt <= eff_start + timedelta(minutes=pp_e)):
+            if can_poll_stage(m, "pp", max_attempts=2, gap_min=15, now_bdt=now_bdt):
+                mark_stage_poll(m, "pp", now_bdt)
+                run_session3_pp_review(m, state, rss_titles=rss_titles)
+                any_action = True
+
+        # Stage 4: 1st Innings Break & Direct Call (eff_start + 85m to +150m — max 2 attempts, 15m gap)
+        elif not sent["innings_break"] and (eff_start + timedelta(minutes=brk_s) <= now_bdt <= eff_start + timedelta(minutes=brk_e)):
+            if can_poll_stage(m, "break", max_attempts=2, gap_min=15, now_bdt=now_bdt):
+                mark_stage_poll(m, "break", now_bdt)
+                if not odds_events:
+                    odds_events = fetch_odds_events(state)
+                run_session4_innings_break(m, state, odds_events, rss_titles=rss_titles)
+                any_action = True
+
+        # Stage 5: Post-Match A+ Sniper Review (eff_start + 185m to +270m — max 2 attempts, 20m gap)
+        elif not sent["post_match"] and (eff_start + timedelta(minutes=end_s) <= now_bdt <= eff_start + timedelta(minutes=end_e)):
+            if can_poll_stage(m, "post", max_attempts=2, gap_min=20, now_bdt=now_bdt):
+                mark_stage_poll(m, "post", now_bdt)
+                run_session5_post_match_review(m, state, rss_titles=rss_titles)
+                any_action = True
+
+    if any_action or state_dirty:
+        save_state(state)
+
+    if IS_MANUAL_RUN:
+        upcoming = [
+            f"• <b>{esc(x['team_a'])} vs {esc(x['team_b'])}</b> — "
+            f"Pre-Toss: <code>{datetime.fromisoformat(x['pre_toss_bdt']).strftime('%I:%M %p')}</code> | "
+            f"Toss: <code>{datetime.fromisoformat(x['toss_bdt']).strftime('%I:%M %p')}</code> | "
+            f"Match: <code>{datetime.fromisoformat(x['start_bdt']).strftime('%I:%M %p')} BDT</code>"
+            for x in active_matches
+        ]
+        send_telegram(
+            f"✅ <b>Manual Workflow Check ({ENGINE_VERSION} • {now_bdt.strftime('%I:%M %p BDT')})</b>\n"
+            f"💳 CricAPI Hits: <code>{credit_label(state)}</code>\n\n"
+            f"<b>Today's Active Radar ({len(upcoming)}):</b>\n" + "\n".join(upcoming)
+        )
 
 
 if __name__ == "__main__":
