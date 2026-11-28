@@ -15,19 +15,21 @@
  "odds": {},
  "open": {},
  "pretoss_odds": {},
- "toss_info": {},
+ "toss_info": {
+  "9c9e7590-a78e-41f5-be1d-9baa730806dc": "sydney thunder women won toss & elected to bowl"
+ },
  "snap": {
   "9c9e7590-a78e-41f5-be1d-9baa730806dc": {
-   "r": 2,
+   "r": 17,
    "w": 0,
    "inn": 1,
    "st": "",
-   "ts": "2026-11-28T08:55:19.643283+00:00"
+   "ts": "2026-11-28T09:00:29.533366+00:00"
   }
  },
  "mom_meta": {},
  "poll_ts": {
-  "9c9e7590-a78e-41f5-be1d-9baa730806dc": "2026-11-28T08:45:22.455495+00:00"
+  "9c9e7590-a78e-41f5-be1d-9baa730806dc": "2026-11-28T09:00:29.533366+00:00"
  },
  "ended": {},
  "results": {
@@ -1562,7 +1564,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-28T08:50:26.776414+00:00",
+ "live_ts": "2026-11-28T09:00:29.533366+00:00",
  "schedule_date": "2026-11-28",
  "schedule_count": 3,
  "paper_picks": {},
