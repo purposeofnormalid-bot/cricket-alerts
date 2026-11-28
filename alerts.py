@@ -8,9 +8,9 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
 # ==========================================
-# 1. CONFIGURATION & API KEYS (v19)
+# 1. CONFIGURATION & API KEYS (v20)
 # ==========================================
-ENGINE_VERSION = "v19"
+ENGINE_VERSION = "v20"
 BDT = timezone(timedelta(hours=6))
 STATE_FILE = "state.json"
 
@@ -24,7 +24,10 @@ IS_MANUAL_RUN = os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch"
 
 ALLOWED_FORMATS = ("t20", "odi", "t20i")
 WOMENS_KEYWORDS = ("women", "womens", "women's", "wbbl", "wbpl", "wpl", "fairbreak", "-w ", "(w)")
-BAD_KEYWORDS = ("u19", "under-19", "under 19", "emerging", "development", "academy", "softball", "rising stars", "t10", "ecs ", "italia")
+BAD_KEYWORDS = (
+    "u19", "under-19", "under 19", "emerging", "development",
+    "academy", "softball", "rising stars", "t10", "ecs ", "italia"
+)
 
 FULL_NATIONS = {
     "india", "australia", "england", "pakistan", "south africa",
@@ -66,10 +69,11 @@ API_INFO = {"hits": None, "limit": 100, "error": ""}
 
 
 # ==========================================
-# 2. STATE MANAGEMENT (ZERO-CREDIT MEMORY)
+# 2. STATE MANAGEMENT (AUTO-CLEAN UPGRADE)
 # ==========================================
 def load_state():
     base = {
+        "engine_version": ENGINE_VERSION,
         "schedule_date": "",
         "credits_used_today": 0,
         "api_hits": None,
@@ -85,6 +89,12 @@ def load_state():
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 s = json.load(f)
+            # One-time clean reset when upgrading from older buggy state (preserves paper_record)
+            if s.get("engine_version") != ENGINE_VERSION:
+                base["paper_record"] = s.get("paper_record", base["paper_record"])
+                base["api_hits"] = s.get("api_hits")
+                base["api_limit"] = s.get("api_limit", 100)
+                return base
             base.update(s)
         except Exception:
             pass
@@ -92,6 +102,7 @@ def load_state():
 
 
 def save_state(state):
+    state["engine_version"] = ENGINE_VERSION
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
@@ -276,7 +287,7 @@ def is_major_match(name, series, team_a, team_b, m_type):
 
 
 # ==========================================
-# 6. DATA SOURCES (CRICAPI + ODDS API [UK,AU] + ESPN RSS)
+# 6. DATA SOURCES (STRICT DATE + EXACT ID LOCK)
 # ==========================================
 def cricapi_get(endpoint, state, **params):
     if not CRICAPI_KEY:
@@ -309,7 +320,6 @@ def cricapi_get(endpoint, state, **params):
 
 
 def fetch_odds_events(state, force=False):
-    """Fetches active cricket leagues across UK + AU (required for WBBL/BBL accurate start times)."""
     if not ODDS_API_KEY:
         return []
     ts = state.get("odds_cache_ts")
@@ -352,8 +362,12 @@ def fetch_odds_events(state, force=False):
     return state.get("odds_cache", [])
 
 
-def get_h2h_from_events(team_a, team_b, events):
+def get_h2h_from_events(team_a, team_b, events, target_date_str=None):
     for ev in (events or []):
+        if target_date_str:
+            dt_bdt = parse_utc_to_bdt(ev.get("commence_time"))
+            if dt_bdt and dt_bdt.strftime("%Y-%m-%d") != target_date_str:
+                continue
         ha, aw = ev.get("home_team", ""), ev.get("away_team", "")
         if same_matchup(team_a, team_b, ha, aw):
             oa_list, ob_list = [], []
@@ -412,10 +426,23 @@ def parse_espn_for_match(team_a, team_b, rss_titles):
     return None
 
 
+def parse_utc_to_bdt(dt_str):
+    if not dt_str:
+        return None
+    try:
+        dt_utc = datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
+        if dt_utc.tzinfo is None:
+            dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+        return dt_utc.astimezone(BDT)
+    except Exception:
+        return None
+
+
 def apply_schedule_time(m, dt_bdt, time_priority):
     toss_offset = m.get("toss_offset_min", 45 if m.get("is_womens") else 30)
     toss_dt = dt_bdt - timedelta(minutes=toss_offset)
     pre_toss_dt = toss_dt - timedelta(minutes=20)
+    m["match_date_bdt"] = dt_bdt.strftime("%Y-%m-%d")
     m["start_bdt"] = dt_bdt.isoformat()
     m["toss_bdt"] = toss_dt.isoformat()
     m["pre_toss_bdt"] = pre_toss_dt.isoformat()
@@ -452,71 +479,57 @@ def make_match_record(mid, name, team_a, team_b, venue, m_type, series, dt_bdt, 
     return m
 
 
-def parse_utc_to_bdt(dt_str):
-    if not dt_str:
-        return None
-    try:
-        dt_utc = datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
-        if dt_utc.tzinfo is None:
-            dt_utc = dt_utc.replace(tzinfo=timezone.utc)
-        return dt_utc.astimezone(BDT)
-    except Exception:
-        return None
-
-
 def fetch_daily_matches_bdt(today_str, state, odds_events):
     """
-    3-Source Discovery + Direct Live/Ended Snapshots (no wasted API info!):
-    Returns: (deduped_matches, live_snapshots_by_id, ended_snapshots_by_id)
+    3-Source Discovery strictly locked to today_str (BDT).
+    NEVER leaks previous days' results or old franchise matchups into today's slate!
+    Returns: (deduped_matches, live_by_exact_id)
     """
     raw_candidates = []
-    live_snaps = {}
-    ended_snaps = {}
+    live_by_id = {}
 
-    # Source 1: cricScore (1 credit)
+    # Source 1: cricScore (1 credit) — STRICT today_str check BEFORE touching any status!
     cs_data = cricapi_get("cricScore", state).get("data") or []
     for x in cs_data:
-        mid = str(x.get("id") or "")
-        ta, tb = clean_team(x.get("t1")), clean_team(x.get("t2"))
-        ms = str(x.get("ms") or "").lower()
-        t1s, t2s = str(x.get("t1s") or "").strip(), str(x.get("t2s") or "").strip()
-        if ms == "result":
-            ended_snaps[mid] = {"id": mid, "t1": ta, "t2": tb, "status": x.get("status", ""), "score_txt": f"{ta} {t1s} | {tb} {t2s}"}
-            continue
-        if ms == "live" or t1s or t2s:
-            live_snaps[mid] = {"id": mid, "t1": ta, "t2": tb, "status": x.get("status", ""), "t1s": t1s, "t2s": t2s, "src": "cricScore"}
         dt_bdt = parse_utc_to_bdt(x.get("dateTimeGMT"))
         if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
             continue
+        if str(x.get("ms") or "").lower() == "result":
+            continue
+        mid = str(x.get("id") or "")
+        ta, tb = clean_team(x.get("t1")), clean_team(x.get("t2"))
         m_type = str(x.get("matchType") or "T20").upper()
         series = str(x.get("series") or "")
         name = f"{ta} vs {tb}, {m_type}"
-        if is_major_match(name, series, ta, tb, m_type):
-            raw_candidates.append(make_match_record(mid, name, ta, tb, "", m_type, series, dt_bdt, time_priority=1))
+        if not is_major_match(name, series, ta, tb, m_type):
+            continue
+        if str(x.get("ms") or "").lower() == "live" or str(x.get("t1s") or "").strip():
+            live_by_id[mid] = {"id": mid, "src": "cricScore", "status": x.get("status", "")}
+        raw_candidates.append(make_match_record(mid, name, ta, tb, "", m_type, series, dt_bdt, time_priority=1))
 
-    # Source 2: currentMatches (1 credit — carries live scores, matchStarted, venues!)
+    # Source 2: currentMatches (1 credit) — STRICT today_str check!
     cm_data = cricapi_get("currentMatches", state, offset=0).get("data") or []
     for m in cm_data:
-        mid = str(m.get("id") or "")
-        teams = m.get("teams") or []
-        if len(teams) < 2:
-            continue
-        ta, tb = clean_team(teams[0]), clean_team(teams[1])
-        if m.get("matchEnded"):
-            ended_snaps[mid] = m
-            continue
-        if m.get("matchStarted") or (m.get("score") and len(m.get("score")) > 0):
-            live_snaps[mid] = m  # Direct full live object!
         dt_bdt = parse_utc_to_bdt(m.get("dateTimeGMT"))
         if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
             continue
+        if m.get("matchEnded"):
+            continue
+        teams = m.get("teams") or []
+        if len(teams) < 2:
+            continue
+        mid = str(m.get("id") or "")
+        ta, tb = clean_team(teams[0]), clean_team(teams[1])
         m_type = str(m.get("matchType") or "T20").upper()
         name = m.get("name") or f"{ta} vs {tb}"
         series = str(m.get("series_id") or "")
-        if is_major_match(name, series, ta, tb, m_type):
-            raw_candidates.append(make_match_record(mid, name, ta, tb, m.get("venue", ""), m_type, series, dt_bdt, time_priority=2))
+        if not is_major_match(name, series, ta, tb, m_type):
+            continue
+        if m.get("matchStarted") or (m.get("score") and len(m.get("score")) > 0):
+            live_by_id[mid] = m
+        raw_candidates.append(make_match_record(mid, name, ta, tb, m.get("venue", ""), m_type, series, dt_bdt, time_priority=2))
 
-    # Source 3: Odds API UK+AU (priority 3 — exact bookmaker start time!)
+    # Source 3: Odds API UK+AU (0 CricAPI credits — highest clock priority)
     for ev in (odds_events or []):
         dt_bdt = parse_utc_to_bdt(ev.get("commence_time"))
         if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != today_str:
@@ -532,7 +545,10 @@ def fetch_daily_matches_bdt(today_str, state, odds_events):
     for cand in raw_candidates:
         match_found = None
         for ex in deduped:
-            if ex["id"] == cand["id"] or same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"]):
+            if ex["id"] == cand["id"] or (
+                ex["match_date_bdt"] == cand["match_date_bdt"]
+                and same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"])
+            ):
                 match_found = ex
                 break
         if not match_found:
@@ -548,17 +564,7 @@ def fetch_daily_matches_bdt(today_str, state, odds_events):
                 apply_schedule_time(match_found, datetime.fromisoformat(cand["start_bdt"]), cand["time_priority"])
 
     deduped.sort(key=lambda x: x["start_bdt"])
-    return deduped, live_snaps, ended_snaps
-
-
-def find_snap_for_match(m, snap_dict):
-    if m["id"] in snap_dict:
-        return snap_dict[m["id"]]
-    for s in snap_dict.values():
-        teams = s.get("teams") or [s.get("t1", ""), s.get("t2", "")]
-        if len(teams) >= 2 and same_matchup(m["team_a"], m["team_b"], teams[0], teams[1]):
-            return s
-    return None
+    return deduped, live_by_id
 
 
 def merge_matches(existing, discovered):
@@ -568,7 +574,10 @@ def merge_matches(existing, discovered):
     for cand in discovered:
         found = None
         for ex in merged:
-            if ex["id"] == cand["id"] or same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"]):
+            if ex["id"] == cand["id"] or (
+                ex.get("match_date_bdt") == cand.get("match_date_bdt")
+                and same_matchup(ex["team_a"], ex["team_b"], cand["team_a"], cand["team_b"])
+            ):
                 found = ex
                 break
         if not found:
@@ -588,16 +597,21 @@ def merge_matches(existing, discovered):
 
 
 def fetch_single_match_live(m, state, rss_titles=None):
+    """Fetches live info strictly by exact CricAPI UUID (date-locked linking if discovered via Odds API)."""
     match_data = {}
     mid = m["id"]
+    m_date = m.get("match_date_bdt") or datetime.fromisoformat(m["start_bdt"]).strftime("%Y-%m-%d")
 
     if mid.startswith("odds_"):
         cm = cricapi_get("currentMatches", state, offset=0).get("data") or []
         for x in cm:
+            dt_bdt = parse_utc_to_bdt(x.get("dateTimeGMT"))
+            if not dt_bdt or dt_bdt.strftime("%Y-%m-%d") != m_date:
+                continue
             teams = x.get("teams") or []
             if len(teams) >= 2 and same_matchup(m["team_a"], m["team_b"], teams[0], teams[1]):
-                m["id"] = x["id"]
-                mid = x["id"]
+                m["id"] = str(x["id"])
+                mid = m["id"]
                 if x.get("venue"):
                     m["venue"] = x["venue"]
                 match_data = x
@@ -606,9 +620,13 @@ def fetch_single_match_live(m, state, rss_titles=None):
     if not mid.startswith("odds_"):
         res = cricapi_get("match_info", state, id=mid)
         if res.get("data"):
-            match_data = res["data"]
-            if match_data.get("venue") and m.get("venue") in ("", "Venue Pending"):
-                m["venue"] = match_data["venue"]
+            d = res["data"]
+            # Safety verify: ensure returned match_info belongs to this match date (within 1 day)
+            d_dt = parse_utc_to_bdt(d.get("dateTimeGMT"))
+            if not d_dt or abs((d_dt.date() - datetime.fromisoformat(m["start_bdt"]).date()).days) <= 1:
+                match_data = d
+                if match_data.get("venue") and m.get("venue") in ("", "Venue Pending"):
+                    m["venue"] = match_data["venue"]
 
     espn = parse_espn_for_match(m["team_a"], m["team_b"], rss_titles if rss_titles is not None else fetch_all_espn_rss())
     match_data["_espn_line"] = espn["raw"] if espn else ""
@@ -667,7 +685,7 @@ def send_session0_daily_schedule(today_str, matches, state):
             f"   ⏰ Pre-Toss: <code>{pt}</code> | Toss: <code>{tt}</code> | Match: <code>{st} BDT</code>"
         )
 
-    lines.append("\n<blockquote>💤 <b>Zero-Credit Gatekeeper + Dual Live Sensor Active:</b> 0 credits in off-hours; auto-wakes via CricAPI Live + ESPN RSS if any match starts early.</blockquote>")
+    lines.append("\n<blockquote>💤 <b>Zero-Credit Gatekeeper + Date-Locked Live Sensor Active:</b> 0 credits in off-hours; zero old-match collision.</blockquote>")
     send_telegram("\n".join(lines))
 
 
@@ -678,7 +696,7 @@ def run_session1_pre_toss(m, state, odds_events):
     pt_str = datetime.fromisoformat(m["pre_toss_bdt"]).strftime("%I:%M %p")
     offset_label = f"-{m['toss_offset_min']}m"
 
-    odds_a, odds_b = get_h2h_from_events(ta, tb, odds_events)
+    odds_a, odds_b = get_h2h_from_events(ta, tb, odds_events, m.get("match_date_bdt"))
     true_a, true_b, vig = devig_odds(odds_a, odds_b)
 
     prompt = f"""
@@ -835,7 +853,7 @@ def run_session2_confirmed_toss(m, state, odds_events, live_data=None, rss_title
         prob_a = cache.get("model_a", 52.0)
         prob_b = round(100.0 - prob_a, 2)
 
-    odds_a, odds_b = get_h2h_from_events(ta, tb, odds_events)
+    odds_a, odds_b = get_h2h_from_events(ta, tb, odds_events, m.get("match_date_bdt"))
     if not odds_a:
         odds_a, odds_b = cache.get("odds_a"), cache.get("odds_b")
     true_a, true_b, _ = devig_odds(odds_a, odds_b)
@@ -977,7 +995,7 @@ def run_session4_innings_break(m, state, odds_events, live_data=None, rss_titles
     chase_win_prob = round(min(max(100.0 / (1.0 + math.exp(-logit)), 12.0), 88.0), 1)
     def_win_prob = round(100.0 - chase_win_prob, 1)
 
-    odds_a, odds_b = get_h2h_from_events(m["team_a"], m["team_b"], odds_events)
+    odds_a, odds_b = get_h2h_from_events(m["team_a"], m["team_b"], odds_events, m.get("match_date_bdt"))
     true_a, true_b, _ = devig_odds(odds_a, odds_b)
     chase_odds = (odds_a if chasing_team == m["team_a"] else odds_b) or 1.85
     def_odds = (odds_a if defending_team == m["team_a"] else odds_b) or 1.85
@@ -1079,12 +1097,16 @@ def run_session5_post_match_review(m, state, live_data=None, rss_titles=None):
     status = str(live.get("status", ""))
     espn_line = str(live.get("_espn_line", ""))
     st_low = (status or espn_line).lower()
-    match_ended = bool(live.get("matchEnded")) or any(k in st_low for k in ("won by", "won ", "no result", "abandoned", "tied"))
+    # Require explicit matchEnded from exact UUID match_info OR valid ended status when match has scores/started
+    match_ended = bool(live.get("matchEnded")) or (
+        bool(live.get("matchStarted") or live.get("score"))
+        and any(k in st_low for k in ("won by", "won ", "no result", "abandoned", "tied"))
+    )
     if not match_ended:
         return
 
     scores = live.get("score") or []
-    score_summary = " | ".join(f"{s.get('inning','')}: {s.get('r',0)}/{s.get('w',0)} ({s.get('o',0)})" for s in scores) or live.get("score_txt", "")
+    score_summary = " | ".join(f"{s.get('inning','')}: {s.get('r',0)}/{s.get('w',0)} ({s.get('o',0)})" for s in scores)
     picks = m.get("sniper_picks", [])
     record = state.setdefault("paper_record", {"wins": 0, "losses": 0, "net_units": 0.0})
 
@@ -1135,7 +1157,7 @@ def run_session5_post_match_review(m, state, live_data=None, rss_titles=None):
 
 
 # ==========================================
-# 8. MAIN EXECUTION & DUAL LIVE-SENSOR GATEKEEPER
+# 8. MAIN EXECUTION & DATE-LOCKED GATEKEEPER
 # ==========================================
 def main():
     now_bdt = datetime.now(BDT)
@@ -1144,7 +1166,7 @@ def main():
 
     is_new_day = state.get("schedule_date") != today_str
     matches = state.get("matches", [])
-    live_snaps, ended_snaps = {}, {}
+    live_by_id = {}
 
     need_retry_empty = False
     if not is_new_day and not matches:
@@ -1163,20 +1185,27 @@ def main():
 
     if is_new_day:
         print(f"🌙 New BDT Day ({today_str}): Running 3-Source Discovery ({ENGINE_VERSION})...")
+        # Carry over any late-night match from yesterday that started within last 6 hours and isn't done
+        carry_over = [
+            x for x in matches
+            if not x.get("sent", {}).get("post_match")
+            and timedelta(0) <= (now_bdt - datetime.fromisoformat(x["start_bdt"])) <= timedelta(hours=6)
+        ]
         state["credits_used_today"] = 0
         state["midday_sync_done"] = False
         odds_events = fetch_odds_events(state, force=True)
-        discovered, live_snaps, ended_snaps = fetch_daily_matches_bdt(today_str, state, odds_events)
+        discovered, live_by_id = fetch_daily_matches_bdt(today_str, state, odds_events)
+        combined, _, _ = merge_matches(carry_over, discovered)
         state["schedule_date"] = today_str
-        state["matches"] = discovered
+        state["matches"] = combined
         state["last_discovery_ts"] = now_bdt.isoformat()
         save_state(state)
-        send_session0_daily_schedule(today_str, discovered, state)
-        matches = discovered
+        send_session0_daily_schedule(today_str, combined, state)
+        matches = combined
 
     elif IS_MANUAL_RUN or need_retry_empty or need_midday_sync:
         odds_events = fetch_odds_events(state, force=IS_MANUAL_RUN)
-        discovered, live_snaps, ended_snaps = fetch_daily_matches_bdt(today_str, state, odds_events)
+        discovered, live_by_id = fetch_daily_matches_bdt(today_str, state, odds_events)
         prev_count = len(matches)
         matches, added, time_fixed = merge_matches(matches, discovered)
         state["matches"] = matches
@@ -1215,20 +1244,10 @@ def main():
         end_s, end_e = (360, 620) if is_odi else (165, 420)
 
         espn = parse_espn_for_match(m["team_a"], m["team_b"], rss_titles)
-        api_live = find_snap_for_match(m, live_snaps)
-        api_ended = find_snap_for_match(m, ended_snaps)
+        exact_live = live_by_id.get(m["id"])
 
-        # Already ended in CricAPI cricScore/currentMatches -> settle with 0 extra credits!
-        if api_ended:
-            end_obj = dict(api_ended)
-            end_obj["matchEnded"] = True
-            end_obj["_espn_line"] = espn["raw"] if espn else ""
-            run_session5_post_match_review(m, state, live_data=end_obj, rss_titles=rss_titles)
-            any_action = True
-            continue
-
-        # DUAL LIVE SENSOR: CricAPI live flag OR ESPN RSS proves match is live despite wrong clock!
-        is_early_live = (bool(api_live) or bool(espn and (espn["is_live"] or espn["is_ended"]))) and now_bdt < start_dt
+        # LIVE SENSOR OVERRIDE: If exact UUID is live OR ESPN RSS proves match is ALREADY LIVE before scheduled start_dt
+        is_early_live = (bool(exact_live) or bool(espn and espn["is_live"])) and now_bdt < start_dt
         if is_early_live:
             last_ov = m.get("last_override_ts", "")
             can_poll = IS_MANUAL_RUN or not last_ov
@@ -1238,12 +1257,11 @@ def main():
                 except Exception:
                     can_poll = True
             if can_poll:
-                print(f"🚨 Dual Live Override triggered for {m['name']}!")
+                print(f"🚨 Live Sensor Override triggered for {m['name']}!")
                 if not odds_events:
                     odds_events = fetch_odds_events(state)
-                # Use full currentMatches object directly if it has score, else fetch match_info (1 credit)
-                if api_live and api_live.get("score") and api_live.get("tossWinner"):
-                    live = dict(api_live)
+                if exact_live and exact_live.get("score") and exact_live.get("tossWinner"):
+                    live = dict(exact_live)
                     live["_espn_line"] = espn["raw"] if espn else ""
                 else:
                     live = fetch_single_match_live(m, state, rss_titles)
@@ -1254,7 +1272,7 @@ def main():
                 pp_gate = 9.4 if is_odi else 5.4
                 status_low = str(live.get("status", "")).lower()
 
-                if (espn and espn["is_ended"]) or live.get("matchEnded") or "won" in status_low:
+                if live.get("matchEnded"):
                     run_session5_post_match_review(m, state, live_data=live, rss_titles=rss_titles)
                     any_action = True
                 elif len(scores) >= 2 or (len(scores) == 1 and (ov_to_dec(scores[0].get("o", 0)) >= max_ov - 0.5 or int(scores[0].get("w", 0)) >= 10 or "break" in status_low)):
@@ -1305,10 +1323,7 @@ def main():
             run_live_hedge_check(m, state, odds_events, rss_titles=rss_titles)
             any_action = True
 
-        elif not sent["post_match"] and (
-            (start_dt + timedelta(minutes=end_s) <= now_bdt <= start_dt + timedelta(minutes=end_e))
-            or (espn and espn["is_ended"])
-        ):
+        elif not sent["post_match"] and (start_dt + timedelta(minutes=end_s) <= now_bdt <= start_dt + timedelta(minutes=end_e)):
             run_session5_post_match_review(m, state, rss_titles=rss_titles)
             any_action = True
 
@@ -1321,7 +1336,7 @@ def main():
             if x["sent"].get("post_match"):
                 continue
             es = parse_espn_for_match(x["team_a"], x["team_b"], rss_titles)
-            al = find_snap_for_match(x, live_snaps)
+            al = live_by_id.get(x["id"])
             live_tag = " 🔴 LIVE" if (al or (es and es["is_live"])) else ""
             upcoming.append(
                 f"• <b>{esc(x['team_a'])} vs {esc(x['team_b'])}</b>{live_tag} — "
