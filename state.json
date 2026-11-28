@@ -1,8 +1,8 @@
 {
   "engine_version": "v22",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 11,
-  "api_hits": 5,
+  "credits_used_today": 13,
+  "api_hits": 7,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T15:48:51.047982+06:00",
   "morning_sync_done": false,
@@ -73,6 +73,10 @@
         "break": {
           "count": 1,
           "last": "2026-11-28T17:55:16.909258+06:00"
+        },
+        "post": {
+          "count": 1,
+          "last": "2026-11-28T19:35:17.749026+06:00"
         }
       },
       "sent": {
@@ -96,7 +100,7 @@
       "name": "Dubai Capitals vs Gulf Giants, T20",
       "team_a": "Dubai Capitals",
       "team_b": "Gulf Giants",
-      "venue": "Venue Pending",
+      "venue": "Dubai International Cricket Stadium, Dubai",
       "series": "International League T20 2026",
       "match_type": "T20",
       "is_womens": false,
@@ -105,15 +109,26 @@
       "odds_sport_key": "",
       "delay_shift_min": 0,
       "last_delay_sig": "",
-      "stage_polls": {},
+      "stage_polls": {
+        "pre_toss": {
+          "count": 1,
+          "last": "2026-11-28T19:35:17.749026+06:00"
+        }
+      },
       "sent": {
-        "pre_toss": false,
+        "pre_toss": true,
         "toss_sessions": false,
         "pp_review": false,
         "innings_break": false,
         "post_match": false
       },
-      "cached_pre_toss": {},
+      "cached_pre_toss": {
+        "par_mean": 166.0,
+        "par_std": 14.5,
+        "dew_high": true,
+        "wx_txt": "Local 06:30 PM (Night) | Rain 0% | Hum 54% | Dew 16.5°C (High)",
+        "wx_ok": true
+      },
       "sniper_picks": [],
       "match_date_bdt": "2026-11-28",
       "start_bdt": "2026-11-28T20:30:00+06:00",
