@@ -1,8 +1,8 @@
 {
   "engine_version": "v20",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 8,
-  "api_hits": 14,
+  "credits_used_today": 9,
+  "api_hits": 15,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T11:20:20.302785+06:00",
   "midday_sync_done": true,
@@ -74,7 +74,7 @@
       "is_womens": true,
       "toss_offset_min": 45,
       "time_priority": 1,
-      "last_override_ts": "2026-11-28T11:55:17.001379+06:00",
+      "last_override_ts": "2026-11-28T12:10:22.431049+06:00",
       "sent": {
         "pre_toss": false,
         "toss_sessions": true,
