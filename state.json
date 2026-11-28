@@ -22,11 +22,11 @@
  },
  "snap": {
   "9c9e7590-a78e-41f5-be1d-9baa730806dc": {
-   "r": 69,
+   "r": 91,
    "w": 1,
    "inn": 1,
-   "st": "match reduced to 16 overs due to rain - sydney thunder women opt to bowl",
-   "ts": "2026-11-28T09:30:26.865176+00:00"
+   "st": "",
+   "ts": "2026-11-28T09:35:16.689406+00:00"
   }
  },
  "mom_meta": {},
@@ -475,7 +475,7 @@
    "fantasyEnabled": false,
    "bbbEnabled": false,
    "hasSquad": false,
-   "matchStarted": false,
+   "matchStarted": true,
    "matchEnded": false
   },
   "597a0b0e-59c7-4829-9e89-6eec4f167084": {
@@ -1541,7 +1541,7 @@
    "matchEnded": true
   }
  },
- "live_ts": "2026-11-28T09:30:26.865176+00:00",
+ "live_ts": "2026-11-28T09:35:16.689406+00:00",
  "schedule_date": "2026-11-28",
  "schedule_count": 3,
  "paper_picks": {},
