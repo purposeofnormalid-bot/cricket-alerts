@@ -1,8 +1,8 @@
 {
   "engine_version": "v22",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 8,
-  "api_hits": 2,
+  "credits_used_today": 9,
+  "api_hits": 3,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T15:48:51.047982+06:00",
   "morning_sync_done": false,
@@ -27,6 +27,10 @@
         "break": {
           "count": 2,
           "last": "2026-11-28T16:05:20.021550+06:00"
+        },
+        "post": {
+          "count": 1,
+          "last": "2026-11-28T17:15:21.235321+06:00"
         }
       },
       "sent": {
