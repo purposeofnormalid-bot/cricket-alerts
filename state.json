@@ -1,8 +1,8 @@
 {
   "engine_version": "v20",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 17,
-  "api_hits": 23,
+  "credits_used_today": 18,
+  "api_hits": 24,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T11:20:20.302785+06:00",
   "midday_sync_done": true,
@@ -84,14 +84,14 @@
       "is_womens": true,
       "toss_offset_min": 45,
       "time_priority": 1,
-      "last_override_ts": "2026-11-28T13:45:21.958428+06:00",
+      "last_override_ts": "2026-11-28T13:59:15.617016+06:00",
       "sent": {
         "pre_toss": false,
         "toss_sessions": true,
         "pp_review": true,
         "innings_break": true,
         "hedge": true,
-        "post_match": false
+        "post_match": true
       },
       "cached_pre_toss": {
         "actual_pp1_runs": 61
@@ -166,8 +166,8 @@
     }
   ],
   "paper_record": {
-    "wins": 0,
+    "wins": 1,
     "losses": 0,
-    "net_units": 0.0
+    "net_units": 0.85
   }
 }
