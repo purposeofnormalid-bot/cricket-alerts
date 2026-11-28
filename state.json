@@ -1,8 +1,8 @@
 {
   "engine_version": "v22",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 4,
-  "api_hits": 101,
+  "credits_used_today": 6,
+  "api_hits": 103,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T15:48:51.047982+06:00",
   "morning_sync_done": false,
@@ -25,8 +25,8 @@
       "last_delay_sig": "",
       "stage_polls": {
         "break": {
-          "count": 1,
-          "last": "2026-11-28T15:48:51.047982+06:00"
+          "count": 2,
+          "last": "2026-11-28T16:05:20.021550+06:00"
         }
       },
       "sent": {
@@ -55,12 +55,12 @@
       "toss_offset_min": 30,
       "time_priority": 1,
       "odds_sport_key": "",
-      "delay_shift_min": 13,
-      "last_delay_sig": "|0",
+      "delay_shift_min": 30,
+      "last_delay_sig": "|1",
       "stage_polls": {
         "toss": {
-          "count": 1,
-          "last": "2026-11-28T15:48:51.047982+06:00"
+          "count": 2,
+          "last": "2026-11-28T16:05:20.021550+06:00"
         }
       },
       "sent": {
