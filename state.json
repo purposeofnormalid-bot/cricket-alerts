@@ -1,8 +1,8 @@
 {
   "engine_version": "v22",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 6,
-  "api_hits": 103,
+  "credits_used_today": 7,
+  "api_hits": 1,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T15:48:51.047982+06:00",
   "morning_sync_done": false,
@@ -48,7 +48,7 @@
       "name": "Desert Vipers vs MI Emirates, T20",
       "team_a": "Desert Vipers",
       "team_b": "MI Emirates",
-      "venue": "Venue Pending",
+      "venue": "Zayed Cricket Stadium, Abu Dhabi",
       "series": "International League T20 2026",
       "match_type": "T20",
       "is_womens": false,
@@ -59,13 +59,13 @@
       "last_delay_sig": "|1",
       "stage_polls": {
         "toss": {
-          "count": 2,
-          "last": "2026-11-28T16:05:20.021550+06:00"
+          "count": 3,
+          "last": "2026-11-28T16:20:22.211614+06:00"
         }
       },
       "sent": {
         "pre_toss": false,
-        "toss_sessions": false,
+        "toss_sessions": true,
         "pp_review": false,
         "innings_break": false,
         "post_match": false
