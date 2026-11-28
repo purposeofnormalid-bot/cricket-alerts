@@ -1,8 +1,8 @@
 {
   "engine_version": "v20",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 12,
-  "api_hits": 18,
+  "credits_used_today": 13,
+  "api_hits": 19,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T11:20:20.302785+06:00",
   "midday_sync_done": true,
@@ -49,14 +49,24 @@
       "time_priority": 1,
       "last_override_ts": "",
       "sent": {
-        "pre_toss": false,
+        "pre_toss": true,
         "toss_sessions": false,
         "pp_review": false,
         "innings_break": false,
         "hedge": false,
         "post_match": false
       },
-      "cached_pre_toss": {},
+      "cached_pre_toss": {
+        "par_mean": 152.0,
+        "par_std": 13.5,
+        "dew_high": false,
+        "model_a": 52.0,
+        "model_b": 48.0,
+        "odds_a": null,
+        "odds_b": null,
+        "if_a_wins_prob": 56.5,
+        "if_b_wins_prob": 52.5
+      },
       "sniper_picks": [],
       "match_date_bdt": "2026-11-28",
       "start_bdt": "2026-11-28T14:10:00+06:00",
@@ -74,19 +84,27 @@
       "is_womens": true,
       "toss_offset_min": 45,
       "time_priority": 1,
-      "last_override_ts": "2026-11-28T12:45:25.448396+06:00",
+      "last_override_ts": "2026-11-28T13:00:32.123907+06:00",
       "sent": {
         "pre_toss": false,
         "toss_sessions": true,
         "pp_review": true,
-        "innings_break": false,
+        "innings_break": true,
         "hedge": false,
         "post_match": false
       },
       "cached_pre_toss": {
         "actual_pp1_runs": 61
       },
-      "sniper_picks": [],
+      "sniper_picks": [
+        {
+          "label": "Melbourne Renegades Women Chase Win @ 1.85",
+          "conf": 88,
+          "type": "winner",
+          "team": "Melbourne Renegades Women",
+          "odds": 1.85
+        }
+      ],
       "match_date_bdt": "2026-11-28",
       "start_bdt": "2026-11-28T14:10:00+06:00",
       "toss_bdt": "2026-11-28T13:25:00+06:00",
