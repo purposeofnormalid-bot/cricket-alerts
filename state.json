@@ -1,9 +1,9 @@
 {
   "schedule_date": "2026-11-28",
-  "credits_used_today": 5,
-  "api_hits": 4,
+  "credits_used_today": 7,
+  "api_hits": 6,
   "api_limit": 100,
-  "last_discovery_ts": "2026-11-28T10:53:38.578415+06:00",
+  "last_discovery_ts": "2026-11-28T11:01:17.442068+06:00",
   "midday_sync_done": true,
   "odds_cache": [],
   "odds_cache_ts": "",
@@ -75,7 +75,7 @@
         "pp_review": false,
         "innings_break": false,
         "hedge": false,
-        "post_match": false
+        "post_match": true
       },
       "cached_pre_toss": {},
       "sniper_picks": []
@@ -99,7 +99,7 @@
         "pp_review": false,
         "innings_break": false,
         "hedge": false,
-        "post_match": false
+        "post_match": true
       },
       "cached_pre_toss": {},
       "sniper_picks": []
