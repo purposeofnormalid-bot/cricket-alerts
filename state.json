@@ -1,11 +1,11 @@
 {
   "engine_version": "v20",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 3,
-  "api_hits": 9,
+  "credits_used_today": 5,
+  "api_hits": 11,
   "api_limit": 100,
-  "last_discovery_ts": "2026-11-28T11:16:30.738389+06:00",
-  "midday_sync_done": false,
+  "last_discovery_ts": "2026-11-28T11:20:20.302785+06:00",
+  "midday_sync_done": true,
   "odds_cache": [],
   "odds_cache_ts": "",
   "matches": [
