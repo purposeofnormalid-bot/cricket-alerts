@@ -20,11 +20,11 @@
  },
  "snap": {
   "9c9e7590-a78e-41f5-be1d-9baa730806dc": {
-   "r": 18,
-   "w": 0,
+   "r": 61,
+   "w": 1,
    "inn": 1,
-   "st": "match reduced to 16 overs due to rain - sydney thunder women opt to bowl",
-   "ts": "2026-11-28T09:15:21.071545+00:00"
+   "st": "",
+   "ts": "2026-11-28T09:20:23.419490+00:00"
   }
  },
  "mom_meta": {},
@@ -456,6 +456,25 @@
  ],
  "matches_ts": "2026-11-28T08:30:55.308951+00:00",
  "live_cache": {
+  "db7fffcb-7fd2-4816-8d65-8890476f12b6": {
+   "id": "db7fffcb-7fd2-4816-8d65-8890476f12b6",
+   "name": "UP Kings vs Haryana Phoenix, 10th Match, Group B, Indian Softball Cricket League 2026",
+   "matchType": "t20",
+   "status": "Haryana Phoenix opt to bowl",
+   "venue": "Acharya Stadium, Bengaluru",
+   "date": "2026-11-28",
+   "dateTimeGMT": "2026-11-28T09:30:00",
+   "teams": [
+    "UP Kings",
+    "Haryana Phoenix"
+   ],
+   "series_id": "3ad43395-1335-4e03-8174-c50d35aed600",
+   "fantasyEnabled": false,
+   "bbbEnabled": false,
+   "hasSquad": false,
+   "matchStarted": false,
+   "matchEnded": false
+  },
   "597a0b0e-59c7-4829-9e89-6eec4f167084": {
    "id": "597a0b0e-59c7-4829-9e89-6eec4f167084",
    "name": "Andaman Admirals vs Chandigarh Royal Strikers, 9th Match, Group B, Indian Softball Cricket League 2026",
@@ -1517,54 +1536,9 @@
    "hasSquad": false,
    "matchStarted": true,
    "matchEnded": true
-  },
-  "4ae1d337-a9fb-4791-8e10-e3f8f802d218": {
-   "id": "4ae1d337-a9fb-4791-8e10-e3f8f802d218",
-   "name": "Sri Lanka Women vs Zimbabwe Women, 22nd Match, Super Six (A1 v B3), ICC Womens Emerging Nations Trophy, 2026",
-   "matchType": "t20",
-   "status": "Sri Lanka Women won by 9 wkts",
-   "venue": "Seven Districts Ground, Ajman",
-   "date": "2026-11-20",
-   "dateTimeGMT": "2026-11-20T05:00:00",
-   "teams": [
-    "Sri Lanka Women",
-    "Zimbabwe Women"
-   ],
-   "teamInfo": [
-    {
-     "name": "Sri Lanka Women",
-     "shortname": "SLW",
-     "img": "https://g.cricapi.com/iapi/4191-638101639309122979.webp?w=48"
-    },
-    {
-     "name": "Zimbabwe Women",
-     "shortname": "ZIMW",
-     "img": "https://g.cricapi.com/iapi/1141-637877080090615236.webp?w=48"
-    }
-   ],
-   "score": [
-    {
-     "r": 68,
-     "w": 10,
-     "o": 19.1,
-     "inning": "zimbabwe women Inning 1"
-    },
-    {
-     "r": 69,
-     "w": 1,
-     "o": 11.3,
-     "inning": "Sri Lanka Women,Zimbabwe Women Inning 1"
-    }
-   ],
-   "series_id": "267a5b0d-370a-4955-8016-17b8790cc33f",
-   "fantasyEnabled": true,
-   "bbbEnabled": false,
-   "hasSquad": false,
-   "matchStarted": true,
-   "matchEnded": true
   }
  },
- "live_ts": "2026-11-28T09:10:21.998672+00:00",
+ "live_ts": "2026-11-28T09:20:23.419490+00:00",
  "schedule_date": "2026-11-28",
  "schedule_count": 3,
  "paper_picks": {},
