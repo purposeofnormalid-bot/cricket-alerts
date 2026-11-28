@@ -1,8 +1,8 @@
 {
   "engine_version": "v22",
   "schedule_date": "2026-11-28",
-  "credits_used_today": 15,
-  "api_hits": 9,
+  "credits_used_today": 16,
+  "api_hits": 10,
   "api_limit": 100,
   "last_discovery_ts": "2026-11-28T15:48:51.047982+06:00",
   "morning_sync_done": false,
@@ -115,13 +115,13 @@
           "last": "2026-11-28T19:35:17.749026+06:00"
         },
         "toss": {
-          "count": 1,
-          "last": "2026-11-28T20:00:33.455208+06:00"
+          "count": 2,
+          "last": "2026-11-28T20:20:24.542566+06:00"
         }
       },
       "sent": {
         "pre_toss": true,
-        "toss_sessions": false,
+        "toss_sessions": true,
         "pp_review": false,
         "innings_break": false,
         "post_match": false
